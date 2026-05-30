@@ -1,0 +1,54 @@
+name: Gold Loan AI Tests
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 3 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Run AI tests
+        run: npm run test
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          TEST_MOBILE: ${{ secrets.TEST_MOBILE }}
+          TEST_OTP: ${{ secrets.TEST_OTP }}
+          TEST_PAN: ${{ secrets.TEST_PAN }}
+          TEST_PINCODE: ${{ secrets.TEST_PINCODE }}
+          BASE_URL: ${{ secrets.BASE_URL }}
+          TEST_VARIANT: fresh
+          INTERACTIVE_OTP: false
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ github.run_id }}
+          path: reports/
+          retention-days: 30
+
+      - name: Upload screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots-${{ github.run_id }}
+          path: screenshots/
+          retention-days: 30

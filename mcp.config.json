@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["@playwright/mcp", "--headless"],
+      "description": "Controls Chromium browser — navigate, click, fill, upload"
+    },
+    "browser-tools": {
+      "command": "npx",
+      "args": ["browser-tools-mcp"],
+      "description": "Screenshots, DOM inspection, JS console error capture"
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-filesystem", "."],
+      "description": "Read rules config, write reports and screenshots to disk"
+    }
+  }
+}

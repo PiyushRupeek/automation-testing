@@ -1,0 +1,32 @@
+{
+  "name": "automated-testing",
+  "version": "1.0.0",
+  "description": "AI-powered UI test automation for gold loan booking flow",
+  "scripts": {
+    "test": "ts-node src/runner.ts --variant fresh",
+    "test:fresh": "ts-node src/runner.ts --variant fresh",
+    "test:takeover": "ts-node src/runner.ts --variant takeover",
+    "test:happy": "ts-node src/runner.ts --variant fresh --mode happy",
+    "test:happy:fresh": "ts-node src/runner.ts --variant fresh --mode happy",
+    "test:happy:takeover": "ts-node src/runner.ts --variant takeover --mode happy",
+    "test:auto:fresh": "AUTO_HEAL=true ts-node src/runner.ts --variant fresh --mode happy",
+    "test:auto:takeover": "AUTO_HEAL=true ts-node src/runner.ts --variant takeover --mode happy",
+    "test:errors": "ts-node src/runner.ts --variant fresh --mode errors",
+    "test:errors:fresh": "ts-node src/runner.ts --variant fresh --mode errors",
+    "test:errors:takeover": "ts-node src/runner.ts --variant takeover --mode errors",
+    "report": "open reports/latest.html"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.0",
+    "@modelcontextprotocol/server-filesystem": "latest",
+    "@playwright/mcp": "latest",
+    "browser-tools-mcp": "latest",
+    "dotenv": "^16.0.0",
+    "playwright": "^1.44.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

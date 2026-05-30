@@ -1,0 +1,57 @@
+{
+  "_comment": "Template for UI team — copy to test-rules.config.json and fill in all TODO fields",
+  "site": {
+    "baseUrl": "{{env.BASE_URL}}",
+    "name": "TODO: e.g. Rupeek B2C Gold Loan — LP2 Fresh",
+    "timeout": 30000
+  },
+  "credentials": {
+    "mobile": "{{env.TEST_MOBILE}}",
+    "otp": "{{env.TEST_OTP}}",
+    "pan": "TODO: valid test PAN e.g. ABCDE1234F"
+  },
+  "loanDetails": {
+    "amount": 0,
+    "goldWeight": 0,
+    "purity": "22K",
+    "purpose": "TODO"
+  },
+  "flow": [
+    {
+      "step": 1,
+      "name": "TODO: step name",
+      "url": "TODO: optional path e.g. /lp/b2c/confirm-details/v1",
+      "actions": [
+        {
+          "type": "click",
+          "label": "TODO: exact button/field label"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "url_contains",
+          "value": "TODO: expected URL fragment"
+        },
+        {
+          "type": "element_visible",
+          "label": "TODO: element that must appear"
+        }
+      ]
+    }
+  ],
+  "errorCases": [
+    {
+      "name": "TODO: scenario name",
+      "step": 1,
+      "override": {
+        "credentials.otp": "000000"
+      },
+      "expectedError": "TODO: exact error message from UI"
+    }
+  ],
+  "schedule": "0 9 * * 1-5",
+  "notifications": {
+    "slackWebhook": "{{env.SLACK_WEBHOOK_URL}}",
+    "email": "TODO: team@rupeek.com"
+  }
+}

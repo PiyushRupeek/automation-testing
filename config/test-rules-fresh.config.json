@@ -1,0 +1,352 @@
+{
+  "flowVariant": "fresh",
+  "site": {
+    "baseUrl": "{{env.BASE_URL}}",
+    "name": "Rupeek B2C Gold Loan — LP2 Fresh",
+    "timeout": 45000
+  },
+  "credentials": {
+    "mobile": "{{env.TEST_MOBILE}}",
+    "otp": "{{env.TEST_OTP}}",
+    "pan": "{{env.TEST_PAN}}"
+  },
+  "loanDetails": {
+    "amount": 500000,
+    "goldWeight": 50,
+    "purity": "22K",
+    "purpose": "Personal",
+    "pincode": "{{env.TEST_PINCODE}}"
+  },
+  "flow": [
+    {
+      "step": 1,
+      "name": "Landing — open auth",
+      "url": "/lp/b2c/2",
+      "actions": [
+        {
+          "type": "click",
+          "label": "Get Started"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Enter Mobile Number"
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Auth — phone and consent",
+      "actions": [
+        {
+          "type": "fill",
+          "label": "Mobile number input",
+          "value": "{{credentials.mobile}}"
+        },
+        {
+          "type": "click",
+          "label": "Continue on phone auth modal"
+        }
+      ],
+      "notes": "Consent is checked by default on PhoneStep — do not toggle the custom checkbox",
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Enter 4 Digit OTP"
+        }
+      ]
+    },
+    {
+      "step": 3,
+      "name": "Auth — OTP (existing user)",
+      "actions": [
+        {
+          "type": "fill",
+          "label": "OTP input",
+          "value": "{{prompt.otp}}"
+        },
+        {
+          "type": "click",
+          "label": "Continue on OTP modal"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Enter Pincode"
+        }
+      ]
+    },
+    {
+      "step": 4,
+      "name": "Auth — pincode",
+      "actions": [
+        {
+          "type": "fill",
+          "label": "Pincode input",
+          "value": "{{loanDetails.pincode}}"
+        },
+        {
+          "type": "click",
+          "label": "Continue on pincode modal"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Yes, That's Me"
+        }
+      ],
+      "notes": "Auth modal stays on /lp/b2c/2 — confirm-details screen does not change URL until later steps"
+    },
+    {
+      "step": 5,
+      "name": "Confirm PAN details",
+      "actions": [
+        {
+          "type": "click",
+          "label": "Yes, That's Me"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "What are you looking for?"
+        },
+        {
+          "type": "url_contains",
+          "value": "/lp/b2c/loan-type/v1"
+        },
+        {
+          "type": "no_error_toast"
+        }
+      ],
+      "notes": "Manual PAN fallback: fill Enter PAN number with {{credentials.pan}}, click Continue. Heading fallback: Is this you?"
+    },
+    {
+      "step": 6,
+      "name": "Loan type — Fresh",
+      "actions": [
+        {
+          "type": "click",
+          "label": "Get New loan option card"
+        },
+        {
+          "type": "click",
+          "label": "Continue on loan type page"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Loan Amount"
+        },
+        {
+          "type": "url_contains",
+          "value": "/lp/b2c/gold-weight-details/v1"
+        }
+      ],
+      "notes": "Step 5 already lands on loan-type/v1 — do not navigate again"
+    },
+    {
+      "step": 7,
+      "name": "Gold weight and primary preference",
+      "actions": [
+        {
+          "type": "click",
+          "label": "Select button on Lowest Interest Rate preference card"
+        },
+        {
+          "type": "click",
+          "label": "Show My Offers button on gold weight page"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Total Loan Amount"
+        },
+        {
+          "type": "url_contains",
+          "value": "/lp/b2c/offer-page"
+        },
+        {
+          "type": "no_error_toast"
+        }
+      ],
+      "notes": "Loan Amount tab is pre-selected with default ₹5,00,000 on page load — do not re-click the card or fill amount (re-click resets to ₹0). Show My Offers is a div-styled button, not a native button tag. After clicking it, wait for offer page — URL updates from gold-weight-details to offer-page."
+    },
+    {
+      "step": 8,
+      "name": "Feature preference",
+      "actions": [],
+      "assertions": [
+        {
+          "type": "url_contains",
+          "value": "/lp/b2c/offer-page"
+        },
+        {
+          "type": "no_error_toast"
+        }
+      ],
+      "notes": "Skipped when step 7 selects a preference — Show My Offers routes directly to offer page, bypassing feature-preference"
+    },
+    {
+      "step": 9,
+      "name": "Select offer",
+      "actions": [
+        {
+          "type": "click",
+          "label": "First offer scheme option card"
+        },
+        {
+          "type": "click",
+          "label": "Proceed on offer page"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Select Date & Time"
+        },
+        {
+          "type": "url_contains",
+          "value": "/lp/b2c/meeting-slots/v1"
+        },
+        {
+          "type": "no_error_toast"
+        }
+      ],
+      "notes": "Proceed on offer page routes directly to meeting-slots — loan-summary is skipped in LP2 fresh flow. Do not navigate again."
+    },
+    {
+      "step": 10,
+      "name": "Loan summary",
+      "actions": [],
+      "assertions": [
+        {
+          "type": "url_contains",
+          "value": "/lp/b2c/meeting-slots/v1"
+        },
+        {
+          "type": "no_error_toast"
+        }
+      ],
+      "notes": "Skipped — LP2 fresh flow bypasses loan-summary; Proceed on offer page lands directly on meeting-slots"
+    },
+    {
+      "step": 11,
+      "name": "Book meeting slot",
+      "actions": [
+        {
+          "type": "click",
+          "label": "First available date on meeting slots calendar"
+        },
+        {
+          "type": "click",
+          "label": "First available Morning or Afternoon time slot on selected date"
+        },
+        {
+          "type": "click",
+          "label": "Continue on meeting slots page"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Loan request submitted"
+        },
+        {
+          "type": "url_contains",
+          "value": "/lp/b2c/thank-you/v1"
+        },
+        {
+          "type": "no_error_toast"
+        }
+      ],
+      "notes": "No-slots fallback: if the selected date shows no Morning/Afternoon time slots, click the next available date in the calendar and select the first available slot — repeat for up to 3 dates. If no date has slots, use emergency booking: click 'Need an emergency slot?', select the first slot in 'Choose Emergency Slots' popup, click 'Book Emergency Slot'. Do not click Continue until a time slot is selected."
+    },
+    {
+      "step": 12,
+      "name": "Booking confirmed — thank you",
+      "actions": [],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Loan request submitted"
+        },
+        {
+          "type": "element_visible",
+          "label": "Our representative will reach out to you shortly to assist you further."
+        }
+      ],
+      "notes": "Previous step lands on thank-you — do not navigate again"
+    }
+  ],
+  "errorCases": [
+    {
+      "name": "Invalid phone — not 10 digits",
+      "step": 2,
+      "override": {
+        "credentials.mobile": "123"
+      },
+      "expectedError": "Please enter a valid 10-digit mobile number"
+    },
+    {
+      "name": "Consent not accepted",
+      "step": 2,
+      "override": {
+        "uncheckConsent": true
+      },
+      "expectedError": "Please accept the terms and conditions to proceed"
+    },
+    {
+      "name": "Wrong OTP",
+      "step": 3,
+      "override": {
+        "credentials.otp": "0000"
+      },
+      "expectedError": "Failed to verify OTP. Please try again."
+    },
+    {
+      "name": "Unserviceable pincode",
+      "step": 4,
+      "override": {
+        "loanDetails.pincode": "999999"
+      },
+      "expectedError": "Sorry, we're not serviceable in this area"
+    },
+    {
+      "name": "Invalid PAN — manual entry",
+      "step": 5,
+      "override": {
+        "credentials.pan": "INVALID1"
+      },
+      "expectedError": "Please enter a valid and active PAN number."
+    },
+    {
+      "name": "Invalid PAN — validation failure",
+      "step": 5,
+      "override": {
+        "credentials.pan": "ABCDE1234G"
+      },
+      "expectedError": "The PAN number you entered is not correct. Please enter a valid PAN."
+    },
+    {
+      "name": "Session expired — missing token",
+      "step": 6,
+      "override": {
+        "clearCookies": [
+          "token"
+        ]
+      },
+      "expectedError": "Redirect to landing or auth entry"
+    }
+  ],
+  "schedule": "0 9 * * 1-5",
+  "notifications": {
+    "slackWebhook": "{{env.SLACK_WEBHOOK_URL}}",
+    "email": "team@rupeek.com"
+  }
+}

@@ -1,0 +1,288 @@
+import { chromium, Browser, BrowserContext, Locator, Page } from 'playwright';
+import * as fs from 'fs';
+import * as path from 'path';
+import { ExecuteActionInput } from './types';
+
+const SCREENSHOTS_DIR = path.join(process.cwd(), 'screenshots');
+
+export class InvalidSelectorError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidSelectorError';
+  }
+}
+
+export function validateFillSelector(selector: string): void {
+  if (/\[value\s*=/.test(selector)) {
+    throw new InvalidSelectorError(
+      `Fill selector must not use [value=...] (dynamic): ${selector}`
+    );
+  }
+}
+
+function isHeadless(): boolean {
+  return process.env.HEADLESS !== 'false';
+}
+
+function resolveChromiumExecutablePath(): string | undefined {
+  const fromEnv = process.env.CHROME_EXECUTABLE_PATH?.trim();
+  if (fromEnv) return fromEnv;
+
+  // Playwright browser downloads can be flaky in some sandboxed environments.
+  // Prefer the system Chrome on macOS when available.
+  if (process.platform === 'darwin') {
+    const candidates = [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) return p;
+    }
+  }
+
+  return undefined;
+}
+
+export class BrowserController {
+  private browser: Browser | null = null;
+  private context: BrowserContext | null = null;
+  private page: Page | null = null;
+  private consoleErrors: string[] = [];
+
+  async launch(): Promise<void> {
+    if (!fs.existsSync(SCREENSHOTS_DIR)) {
+      fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+    }
+
+    const executablePath = resolveChromiumExecutablePath();
+    this.browser = await chromium.launch({
+      headless: isHeadless(),
+      executablePath,
+    });
+    this.context = await this.browser.newContext({
+      viewport: { width: 1280, height: 720 },
+    });
+    this.page = await this.context.newPage();
+
+    this.page.on('console', (msg) => {
+      if (msg.type() === 'error') {
+        this.consoleErrors.push(msg.text());
+      }
+    });
+
+    this.page.on('pageerror', (err) => {
+      this.consoleErrors.push(err.message);
+    });
+  }
+
+  private getPage(): Page {
+    if (!this.page) {
+      throw new Error('Browser not launched. Call launch() first.');
+    }
+    return this.page;
+  }
+
+  async navigate(url: string, timeout = 30000): Promise<void> {
+    const page = this.getPage();
+    await page.goto(url, { waitUntil: 'networkidle', timeout });
+  }
+
+  getCurrentUrl(): string {
+    return this.getPage().url();
+  }
+
+  private async isAlreadySelected(selector: string): Promise<boolean> {
+    const page = this.getPage();
+    const locator = page.locator(selector).first();
+    if ((await locator.count()) === 0) return false;
+    const className = (await locator.getAttribute('class')) ?? '';
+    return /active/i.test(className);
+  }
+
+  private async fillInput(selector: string, value: string): Promise<void> {
+    validateFillSelector(selector);
+    const page = this.getPage();
+    const locator = page.locator(selector).first();
+    await locator.waitFor({ state: 'visible', timeout: 15000 });
+    await locator.click({ timeout: 15000 });
+
+    // React-controlled inputs sometimes ignore Playwright fill/typing unless we use
+    // the native HTMLInputElement value setter + bubbling input/change events.
+    const setValueViaNativeSetter = async (next: string): Promise<void> => {
+      await locator.evaluate((el, val) => {
+        // Use `any` here because this code executes in the browser context; this
+        // project doesn't include DOM libs in tsconfig.
+        const input = el as any;
+        const setter = Object.getOwnPropertyDescriptor(
+          (globalThis as any).HTMLInputElement?.prototype,
+          'value'
+        )?.set;
+        setter?.call(input, val);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }, next);
+    };
+
+    const getValue = async (): Promise<string> => {
+      try {
+        return await locator.inputValue();
+      } catch {
+        return await locator.evaluate((el) => (el as any).value);
+      }
+    };
+
+    const isValueApplied = async (): Promise<boolean> => {
+      if (!value) return true;
+      const current = (await getValue()).trim();
+      return current === value;
+    };
+
+    // 1) Clear + set via native setter (best for React controlled inputs)
+    await setValueViaNativeSetter('');
+    if (value) await setValueViaNativeSetter(value);
+
+    // 2) Fallback to Playwright fill
+    if (!(await isValueApplied())) {
+      await locator.fill(value);
+    }
+
+    // 3) Last resort: type sequentially
+    if (!(await isValueApplied())) {
+      await locator.fill('');
+      if (value) {
+        await locator.pressSequentially(value, { delay: 40 });
+      }
+      await locator.dispatchEvent('input');
+      await locator.dispatchEvent('change');
+    }
+
+    if (!(await isValueApplied())) {
+      const current = await getValue();
+      throw new Error(
+        `Fill did not stick for selector "${selector}". Expected "${value}", got "${current}".`
+      );
+    }
+
+    await locator.blur();
+  }
+
+  private async performClick(selector: string): Promise<void> {
+    const page = this.getPage();
+    await page.waitForTimeout(100);
+
+    // Prefer exact text targeting for selectable cards (avoids outer wrapper divs).
+    const textMatch = selector.match(/has-text\(['"](.+?)['"]\)/);
+    if (textMatch) {
+      const text = textMatch[1].replace(/\\'/g, "'");
+      const byText = page.getByText(text, { exact: true });
+      if ((await byText.count()) > 0) {
+        const target = byText.first();
+        await target.waitFor({ state: 'visible', timeout: 15000 });
+        await target.scrollIntoViewIfNeeded();
+        await target.click({ timeout: 15000 });
+        await page.waitForTimeout(400);
+        return;
+      }
+    }
+
+    const locator = page.locator(selector).first();
+    await locator.waitFor({ state: 'visible', timeout: 15000 });
+    await locator.scrollIntoViewIfNeeded();
+    await locator.click({ timeout: 15000 });
+    await page.waitForTimeout(400);
+  }
+
+  private async clickWhenEnabled(selector: string): Promise<void> {
+    const page = this.getPage();
+    const locator = page.locator(selector).first();
+    await locator.waitFor({ state: 'visible', timeout: 15000 });
+
+    const deadline = Date.now() + 20000;
+    while (Date.now() < deadline) {
+      if (!(await locator.isDisabled())) break;
+      await page.waitForTimeout(250);
+    }
+    if (await locator.isDisabled()) {
+      throw new Error(`Element is still disabled: ${selector}`);
+    }
+    await this.performClick(selector);
+  }
+
+  async executeAction(input: ExecuteActionInput): Promise<void> {
+    const page = this.getPage();
+    const { selector, action, value, file } = input;
+
+    switch (action) {
+      case 'click':
+        if (await this.isAlreadySelected(selector)) {
+          return;
+        }
+        await this.clickWhenEnabled(selector);
+        break;
+      case 'fill':
+        validateFillSelector(selector);
+        await this.fillInput(selector, value ?? '');
+        break;
+      case 'select':
+        await page.selectOption(selector, value ?? '', { timeout: 15000 });
+        break;
+      case 'upload':
+        if (!file) throw new Error('Upload action requires a file path');
+        await page.setInputFiles(selector, path.resolve(file));
+        break;
+      case 'check':
+        await page.check(selector, { timeout: 15000 });
+        break;
+      case 'uncheck':
+        await page.uncheck(selector, { timeout: 15000 });
+        break;
+      case 'assert_text':
+        break;
+      default:
+        throw new Error(`Unknown action type: ${action}`);
+    }
+  }
+
+  async getPageHTML(): Promise<string> {
+    return this.getPage().content();
+  }
+
+  async screenshot(filename: string): Promise<string> {
+    const filepath = path.join(SCREENSHOTS_DIR, filename);
+    await this.getPage().screenshot({ path: filepath, fullPage: true });
+    return filepath;
+  }
+
+  async screenshotBase64(): Promise<string> {
+    const buffer = await this.getPage().screenshot({ fullPage: false });
+    return buffer.toString('base64');
+  }
+
+  getConsoleErrors(): string[] {
+    return [...this.consoleErrors];
+  }
+
+  clearConsoleErrors(): void {
+    this.consoleErrors = [];
+  }
+
+  async clearCookies(names: string[]): Promise<void> {
+    if (!this.context) return;
+    for (const name of names) {
+      await this.context.clearCookies({ name });
+    }
+  }
+
+  async close(): Promise<void> {
+    if (this.context) {
+      await this.context.close();
+      this.context = null;
+    }
+    if (this.browser) {
+      await this.browser.close();
+      this.browser = null;
+    }
+    this.page = null;
+  }
+}
