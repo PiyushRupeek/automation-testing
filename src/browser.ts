@@ -3,8 +3,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ExecuteActionInput } from './types';
 
-const SCREENSHOTS_DIR = path.join(process.cwd(), 'screenshots');
-
 export class InvalidSelectorError extends Error {
   constructor(message: string) {
     super(message);
@@ -49,10 +47,15 @@ export class BrowserController {
   private context: BrowserContext | null = null;
   private page: Page | null = null;
   private consoleErrors: string[] = [];
+  private screenshotsDir: string;
+
+  constructor(screenshotsDir: string) {
+    this.screenshotsDir = screenshotsDir;
+  }
 
   async launch(): Promise<void> {
-    if (!fs.existsSync(SCREENSHOTS_DIR)) {
-      fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+    if (!fs.existsSync(this.screenshotsDir)) {
+      fs.mkdirSync(this.screenshotsDir, { recursive: true });
     }
 
     const executablePath = resolveChromiumExecutablePath();
@@ -86,6 +89,38 @@ export class BrowserController {
   async navigate(url: string, timeout = 30000): Promise<void> {
     const page = this.getPage();
     await page.goto(url, { waitUntil: 'networkidle', timeout });
+  }
+
+  async reload(timeout = 30000): Promise<void> {
+    const page = this.getPage();
+    await page.reload({ waitUntil: 'networkidle', timeout });
+  }
+
+  async clearStorage(target = 'sessionStorage'): Promise<void> {
+    const page = this.getPage();
+    await page.evaluate((storageTarget) => {
+      const w = globalThis as Record<string, { clear?: () => void } | undefined>;
+      if (storageTarget === 'localStorage') {
+        w.localStorage?.clear?.();
+      } else {
+        w.sessionStorage?.clear?.();
+      }
+    }, target);
+  }
+
+  async resetSessionState(): Promise<void> {
+    if (this.context) {
+      await this.context.clearCookies();
+    }
+  }
+
+  async clearPageStorage(): Promise<void> {
+    try {
+      await this.clearStorage('sessionStorage');
+      await this.clearStorage('localStorage');
+    } catch {
+      // Storage may be unavailable before first navigation
+    }
   }
 
   getCurrentUrl(): string {
@@ -314,7 +349,7 @@ export class BrowserController {
   }
 
   async screenshot(filename: string): Promise<string> {
-    const filepath = path.join(SCREENSHOTS_DIR, filename);
+    const filepath = path.join(this.screenshotsDir, filename);
     await this.getPage().screenshot({ path: filepath, fullPage: true });
     return filepath;
   }

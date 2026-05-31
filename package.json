@@ -11,10 +11,13 @@
     "test:happy:takeover": "ts-node src/runner.ts --variant takeover --mode happy",
     "test:auto:fresh": "AUTO_HEAL=true ts-node src/runner.ts --variant fresh --mode happy",
     "test:auto:takeover": "AUTO_HEAL=true ts-node src/runner.ts --variant takeover --mode happy",
+    "test:state-management": "ts-node src/runner.ts --variant state-management --mode scenarios",
+    "test:state-management:all": "ts-node src/runner.ts --variant state-management --mode all",
+    "test:auto:state-management": "AUTO_HEAL=true ts-node src/runner.ts --variant state-management --mode scenarios",
     "test:errors": "ts-node src/runner.ts --variant fresh --mode errors",
     "test:errors:fresh": "ts-node src/runner.ts --variant fresh --mode errors",
     "test:errors:takeover": "ts-node src/runner.ts --variant takeover --mode errors",
-    "report": "open reports/latest.html"
+    "report": "open reports/latest/report.html"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",

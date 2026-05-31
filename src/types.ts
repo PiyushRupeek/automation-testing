@@ -1,4 +1,14 @@
-export type ActionType = 'fill' | 'click' | 'select' | 'upload' | 'check' | 'uncheck' | 'assert_text';
+export type ActionType =
+  | 'fill'
+  | 'click'
+  | 'select'
+  | 'upload'
+  | 'check'
+  | 'uncheck'
+  | 'assert_text'
+  | 'navigate'
+  | 'reload'
+  | 'clear_storage';
 
 export type AssertionType =
   | 'url_contains'
@@ -13,12 +23,14 @@ export interface SiteConfig {
 }
 
 export interface Credentials {
-  mobile: string;
+  mobile?: string;
+  mobileFresh?: string;
+  mobileTakeover?: string;
   otp: string;
   pan: string;
 }
 
-export type FlowVariant = 'fresh' | 'takeover';
+export type FlowVariant = 'fresh' | 'takeover' | 'state-management';
 
 export interface LoanDetails {
   amount: number;
@@ -30,10 +42,11 @@ export interface LoanDetails {
 
 export interface TestAction {
   type: ActionType;
-  label: string;
+  label?: string;
   value?: string;
   file?: string;
   pattern?: string;
+  target?: string;
 }
 
 export interface TestAssertion {
@@ -47,9 +60,18 @@ export interface FlowStep {
   step: number;
   name: string;
   url?: string;
+  phase?: string;
   actions: TestAction[];
   assertions: TestAssertion[];
   notes?: string;
+}
+
+export interface Scenario {
+  id: string;
+  name: string;
+  loanType: 'fresh' | 'takeover';
+  description?: string;
+  flow: FlowStep[];
 }
 
 export interface ErrorCaseOverride {
@@ -61,6 +83,7 @@ export interface ErrorCase {
   step: number;
   override: ErrorCaseOverride;
   expectedError: string;
+  scenario?: string;
 }
 
 export interface Notifications {
@@ -79,6 +102,23 @@ export interface TestRules {
   notifications: Notifications;
 }
 
+export interface StateManagementRules {
+  flowVariant: 'state-management';
+  site: SiteConfig;
+  credentials: Credentials;
+  loanDetails: LoanDetails;
+  scenarios: Scenario[];
+  errorCases: ErrorCase[];
+  schedule: string;
+  notifications: Notifications;
+}
+
+export type RulesConfig = TestRules | StateManagementRules;
+
+export function isStateManagementRules(rules: RulesConfig): rules is StateManagementRules {
+  return rules.flowVariant === 'state-management' || 'scenarios' in rules;
+}
+
 export interface PlanStepResult {
   selector: string;
   action: ActionType;
@@ -91,7 +131,7 @@ export interface AssertionResult {
 }
 
 export interface ActionLog {
-  label: string;
+  label?: string;
   type: ActionType;
   selector?: string;
   status: 'pass' | 'fail';
@@ -204,7 +244,7 @@ export interface FailureContext {
   screenshotBase64?: string;
 }
 
-export type RunMode = 'happy' | 'errors' | 'all';
+export type RunMode = 'happy' | 'errors' | 'all' | 'scenarios';
 
 export interface StepRunOptions {
   uploadFileOverride?: string;
@@ -212,6 +252,7 @@ export interface StepRunOptions {
   clearCookiesBefore?: string[];
   useEmergencySlot?: boolean;
   timeout?: number;
+  artifactPrefix?: string;
 }
 
 export interface ResolvedAction extends TestAction {

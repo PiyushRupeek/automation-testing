@@ -1,8 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { HealLog, RunResult, StepResult } from './types';
-
-const REPORTS_DIR = path.join(process.cwd(), 'reports');
+import { updateLatestShortcut } from './run-output';
 
 function escapeHtml(text: string): string {
   return text
@@ -34,7 +33,7 @@ function renderStepCard(step: StepResult): string {
   const actionsHtml = step.actions
     .map(
       (a) =>
-        `<li class="${a.status}"><strong>${escapeHtml(a.label)}</strong> (${escapeHtml(a.type)})` +
+        `<li class="${a.status}"><strong>${escapeHtml(a.label ?? a.type)}</strong> (${escapeHtml(a.type)})` +
         `${a.selector ? ` — <code>${escapeHtml(a.selector)}</code>` : ''}` +
         `${a.error ? ` — <span class="error">${escapeHtml(a.error)}</span>` : ''}</li>`
     )
@@ -202,27 +201,19 @@ function buildHtml(result: RunResult, jsonFilename: string): string {
 </html>`;
 }
 
-export function generateHTML(result: RunResult): { htmlPath: string; jsonPath: string } {
-  if (!fs.existsSync(REPORTS_DIR)) {
-    fs.mkdirSync(REPORTS_DIR, { recursive: true });
+export function generateHTML(result: RunResult, runDir: string): { htmlPath: string; jsonPath: string } {
+  if (!fs.existsSync(runDir)) {
+    fs.mkdirSync(runDir, { recursive: true });
   }
 
-  const now = new Date(result.timestamp);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
-  const baseName = `${stamp}_automated-testing`;
-  const htmlPath = path.join(REPORTS_DIR, `${baseName}.html`);
-  const jsonPath = path.join(REPORTS_DIR, `${baseName}_result.json`);
-  const latestHtmlPath = path.join(REPORTS_DIR, 'latest.html');
-  const latestJsonPath = path.join(REPORTS_DIR, 'latest_result.json');
+  const htmlPath = path.join(runDir, 'report.html');
+  const jsonPath = path.join(runDir, 'result.json');
 
-  const jsonFilename = `${baseName}_result.json`;
-  const html = buildHtml(result, jsonFilename);
+  const html = buildHtml(result, 'result.json');
 
   fs.writeFileSync(htmlPath, html, 'utf-8');
   fs.writeFileSync(jsonPath, JSON.stringify(result, null, 2), 'utf-8');
-  fs.writeFileSync(latestHtmlPath, html, 'utf-8');
-  fs.writeFileSync(latestJsonPath, JSON.stringify(result, null, 2), 'utf-8');
+  updateLatestShortcut(runDir);
 
   return { htmlPath, jsonPath };
 }

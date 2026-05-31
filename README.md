@@ -43,13 +43,15 @@ npm run report        # open latest HTML report
 |----------|----------|-------------|
 | `ANTHROPIC_API_KEY` | Yes | Claude API key |
 | `BASE_URL` | Yes | Gold loan booking site base URL |
-| `TEST_MOBILE` | Yes | Test phone number |
+| `TEST_MOBILE` | Yes | Test phone number (fresh/takeover linear flows) |
+| `TEST_MOBILE_FRESH` | Yes* | Fresh-loan mobile for state-management scenarios |
+| `TEST_MOBILE_TAKEOVER` | Yes* | Takeover mobile for state-management scenarios |
 | `INTERACTIVE_OTP` | No | If `true`, prompt for OTP at runtime in terminal (recommended locally) |
 | `TEST_OTP` | No | OTP fallback when `INTERACTIVE_OTP=false` (e.g. CI with static OTP) |
 | `TEST_PAN` | Yes | Valid test PAN |
 | `TEST_PINCODE` | Yes | Serviceable 6-digit pincode |
 | `SLACK_WEBHOOK_URL` | No | Slack webhook for failure alerts |
-| `TEST_VARIANT` | No | `fresh` or `takeover` (default: fresh) |
+| `TEST_VARIANT` | No | `fresh`, `takeover`, or `state-management` (default: fresh) |
 | `AUTO_HEAL` | No | Enable AI self-healing on failures (default: `true`; set `false` to disable) |
 | `AUTO_HEAL_MAX_ATTEMPTS` | No | Max heal retries per action/assertion (default: `3`) |
 | `HEADLESS` | No | Run browser headless (default: `true`; set `false` for local debugging) |
@@ -78,11 +80,11 @@ automated-testing/
 │   ├── agent.ts                    # Claude API orchestration
 │   ├── browser.ts                  # Playwright browser control
 │   ├── reporter.ts                 # HTML report generator
+│   ├── run-output.ts               # Per-run dated output folders
 │   └── types.ts                    # TypeScript definitions
 ├── config/backups/                 # Auto-heal config backups (gitignored)
 ├── tests/fixtures/                 # Sample KYC documents for upload tests
-├── reports/                        # Generated reports (gitignored)
-├── screenshots/                    # Captured screenshots (gitignored)
+├── reports/                        # Per-run folders (gitignored, see below)
 ├── mcp.config.json                 # MCP servers for IDE debugging
 └── .github/workflows/test.yml      # CI/CD pipeline
 ```
@@ -95,15 +97,21 @@ Test configs for Rupeek B2C LP2:
 |------|------|
 | [`config/test-rules-fresh.config.json`](config/test-rules-fresh.config.json) | Fresh loan — 12 steps |
 | [`config/test-rules-takeover.config.json`](config/test-rules-takeover.config.json) | Takeover — 11 steps |
+| [`config/test-rules-state-management.config.json`](config/test-rules-state-management.config.json) | Drop/resume, back navigation, reload — 10 scenarios |
 
 ```bash
 npm run test:fresh              # fresh: happy + errors
 npm run test:takeover           # takeover: happy + errors
+npm run test:state-management   # state-management scenarios only
+npm run test:state-management:all  # scenarios + regression error cases
 npm run test:happy:fresh        # fresh happy path only
 npm run test:happy:takeover     # takeover happy path only
 npm run test:auto:fresh         # fresh happy path with self-healing enabled
 npm run test:auto:takeover      # takeover happy path with self-healing enabled
+npm run test:auto:state-management  # state-management with self-healing
 ```
+
+**State-management suite notes:** Scenarios run in booking-stage order (back-nav → gold-weight → offer) on a single `TEST_MOBILE_FRESH`. The runner clears cookies and `sessionStorage` between scenarios; backend booking state still advances per mobile. If the first scenario deep-links to offer instead of loan-type, cancel/reset the fresh booking once before re-running. Config auto-patching is disabled for this variant — failures will not rewrite the JSON.
 
 ## Self-healing
 
@@ -114,7 +122,27 @@ When `AUTO_HEAL=true` (default), the runner automatically diagnoses failures usi
 - **wait_then_retry** — wait for async UI transitions
 - **patch_config** — auto-edit the active flow step in config when confidence is high (with backup)
 
-Config backups are saved to `config/backups/{variant}-{timestamp}.config.json`. A detailed heal log is written to `reports/heal-log-{runId}.json` and shown in the HTML report.
+Config backups are saved to `config/backups/{variant}-{timestamp}.config.json`. A detailed heal log is written to `heal-log.json` inside each run folder and shown in the HTML report.
+
+## Reports and screenshots
+
+Each test run creates a dated folder under `reports/`:
+
+```
+reports/
+  2026-05-31_01-03-45_fresh-happy/
+    report.html
+    result.json
+    heal-log.json       # when self-healing ran
+    screenshots/
+      step-1-action-1.png
+      ...
+  latest/               # shortcut to most recent run
+    report.html
+    result.json
+```
+
+Open the latest report with `npm run report`.
 
 Disable self-healing with `--no-auto-heal` or `AUTO_HEAL=false`:
 
@@ -158,7 +186,7 @@ To add an error case:
 ## Security
 
 - API keys and credentials must never be hardcoded in source files
-- `reports/` and `screenshots/` are gitignored (may contain PII)
+- `reports/` is gitignored (may contain PII); each run folder includes its own screenshots
 - Use GitHub Secrets for CI credentials
 
 ## Architecture note

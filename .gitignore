@@ -1,7 +1,6 @@
 node_modules/
 .env
 reports/
-screenshots/
 config/backups/
 dist/
 .playwright-browsers/

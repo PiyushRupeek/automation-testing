@@ -7,12 +7,16 @@ import {
   FlowVariant,
   PlanStepResult,
   RunResult,
+  RulesConfig,
+  Scenario,
+  StateManagementRules,
   TestAction,
   TestAssertion,
   TestRules,
   FailureContext,
   PlanStepContext,
   RecoveryPlan,
+  isStateManagementRules,
 } from './types';
 
 const MODEL = 'claude-sonnet-4-20250514';
@@ -247,10 +251,12 @@ export function parseVariant(): FlowVariant {
   const idx = process.argv.indexOf('--variant');
   if (idx !== -1 && process.argv[idx + 1]) {
     const v = process.argv[idx + 1];
-    if (v === 'fresh' || v === 'takeover') return v;
+    if (v === 'fresh' || v === 'takeover' || v === 'state-management') return v;
   }
   const envVariant = process.env.TEST_VARIANT;
-  if (envVariant === 'fresh' || envVariant === 'takeover') return envVariant;
+  if (envVariant === 'fresh' || envVariant === 'takeover' || envVariant === 'state-management') {
+    return envVariant;
+  }
   return 'fresh';
 }
 
@@ -260,9 +266,9 @@ export function getRulesConfigPath(variant?: FlowVariant): string {
 }
 
 export function resolveTemplates(
-  rules: TestRules,
+  rules: RulesConfig,
   overrides?: ErrorCaseOverride
-): TestRules {
+): RulesConfig {
   const cloned = deepClone(rules) as unknown as Record<string, unknown>;
 
   if (overrides) {
@@ -291,14 +297,38 @@ export function resolveTemplates(
     return value;
   };
 
-  return resolve(cloned) as unknown as TestRules;
+  return resolve(cloned) as unknown as RulesConfig;
 }
 
-export function loadRules(configPath?: string): TestRules {
+export function scenarioToTestRules(
+  rules: StateManagementRules,
+  scenario: Scenario
+): TestRules {
+  const mobile =
+    scenario.loanType === 'fresh'
+      ? rules.credentials.mobileFresh ?? rules.credentials.mobile
+      : rules.credentials.mobileTakeover ?? rules.credentials.mobile;
+
+  return {
+    flowVariant: 'state-management',
+    site: rules.site,
+    credentials: {
+      ...rules.credentials,
+      mobile: mobile ?? '',
+    },
+    loanDetails: rules.loanDetails,
+    flow: scenario.flow,
+    errorCases: rules.errorCases,
+    schedule: rules.schedule,
+    notifications: rules.notifications,
+  };
+}
+
+export function loadRules(configPath?: string): RulesConfig {
   const filePath = configPath ?? getRulesConfigPath();
   const raw = fs.readFileSync(filePath, 'utf-8');
-  const parsed = JSON.parse(raw) as TestRules;
-  return resolveEnvTemplates(parsed) as TestRules;
+  const parsed = JSON.parse(raw) as RulesConfig;
+  return resolveEnvTemplates(parsed) as RulesConfig;
 }
 
 export async function planStep(
@@ -337,7 +367,7 @@ export async function planStep(
     PLAN_STEP_SYSTEM,
     content,
     1024,
-    `planStep:${stepName}:${action.label}`
+    `planStep:${stepName}:${action.label ?? action.type}`
   );
 
   return {

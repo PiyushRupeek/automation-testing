@@ -1,0 +1,1198 @@
+{
+  "flowVariant": "state-management",
+  "site": {
+    "baseUrl": "{{env.BASE_URL}}",
+    "name": "Rupeek B2C Gold Loan — LP2 State Management (Fresh + Takeover)",
+    "timeout": 60000
+  },
+  "credentials": {
+    "mobileFresh": "{{env.TEST_MOBILE_FRESH}}",
+    "mobileTakeover": "{{env.TEST_MOBILE_TAKEOVER}}",
+    "otp": "{{env.TEST_OTP}}",
+    "pan": "{{env.TEST_PAN}}"
+  },
+  "loanDetails": {
+    "amount": 500000,
+    "goldWeight": 50,
+    "purity": "22K",
+    "purpose": "Personal",
+    "pincode": "{{env.TEST_PINCODE}}"
+  },
+  "scenarios": [
+    {
+      "id": "fresh-browser-back-loan-type",
+      "name": "Fresh — browser back from loan type returns to confirm details",
+      "loanType": "fresh",
+      "description": "Back from loan-type/v1 should move to previous webFlow step (confirm-details) via moveToPreviousWebFlow, or open pincode auth on landing.",
+      "flow": [
+        {
+          "step": 1,
+          "phase": "setup",
+          "name": "Reach loan type page",
+          "url": "/lp/b2c/2",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileFresh}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            },
+            {
+              "type": "fill",
+              "label": "Pincode input",
+              "value": "{{loanDetails.pincode}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on pincode modal"
+            },
+            {
+              "type": "click",
+              "label": "Yes, That's Me"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "What are you looking for?"
+            }
+          ],
+          "notes": "SPA may keep URL at /lp/b2c/2 — use element_visible only, not url_contains for loan-type."
+        },
+        {
+          "step": 2,
+          "phase": "back",
+          "name": "Press back — navbar back arrow on loan type page",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Back arrow button on loan type page header"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Yes, That's Me"
+            }
+          ],
+          "notes": "Alternative assertion if back goes to landing: element_visible Enter Pincode with openAuth=1 query. confirm-details back sets booking status to INITIATED and opens pincode auth on landing."
+        }
+      ]
+    },
+    {
+      "id": "fresh-browser-back-gold-weight",
+      "name": "Fresh — browser back from gold weight returns to loan type",
+      "loanType": "fresh",
+      "description": "Back from gold-weight-details should return to loan-type/v1 via moveToPreviousWebFlow (booking status reverted to PAN_FETCHED).",
+      "flow": [
+        {
+          "step": 1,
+          "phase": "setup",
+          "name": "Reach gold weight page",
+          "url": "/lp/b2c/2",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileFresh}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            },
+            {
+              "type": "fill",
+              "label": "Pincode input",
+              "value": "{{loanDetails.pincode}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on pincode modal"
+            },
+            {
+              "type": "click",
+              "label": "Yes, That's Me"
+            },
+            {
+              "type": "click",
+              "label": "Get New loan option card"
+            },
+            {
+              "type": "click",
+              "label": "Continue on loan type page"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Loan Amount"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/gold-weight-details/v1"
+            }
+          ]
+        },
+        {
+          "step": 2,
+          "phase": "back",
+          "name": "Press back — navbar back arrow on gold weight page",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Back arrow button on gold weight page header"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "What are you looking for?"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/loan-type/v1"
+            }
+          ],
+          "notes": "Get New loan card may still appear selected from prior forward navigation"
+        }
+      ]
+    },
+    {
+      "id": "fresh-drop-gold-weight-resume",
+      "name": "Fresh — drop at gold weight page, resume to gold weight",
+      "loanType": "fresh",
+      "description": "User selects fresh loan and lands on gold-weight-details but does not proceed. Drop and re-auth should restore to gold-weight-details (booking status LOAN_TYPE_CAPTURED).",
+      "flow": [
+        {
+          "step": 1,
+          "phase": "setup",
+          "name": "Fresh setup — auth through loan type selection",
+          "url": "/lp/b2c/2",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileFresh}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            },
+            {
+              "type": "fill",
+              "label": "Pincode input",
+              "value": "{{loanDetails.pincode}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on pincode modal"
+            },
+            {
+              "type": "click",
+              "label": "Yes, That's Me"
+            },
+            {
+              "type": "click",
+              "label": "Get New loan option card"
+            },
+            {
+              "type": "click",
+              "label": "Continue on loan type page"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Loan Amount"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/gold-weight-details/v1"
+            }
+          ]
+        },
+        {
+          "step": 2,
+          "phase": "drop",
+          "name": "Simulate drop-off — return to landing",
+          "actions": [
+            {
+              "type": "navigate",
+              "value": "/lp/b2c/2"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Get Started"
+            }
+          ]
+        },
+        {
+          "step": 3,
+          "phase": "resume",
+          "name": "Resume — re-auth should deep-link to gold weight page",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileFresh}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Loan Amount"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/gold-weight-details/v1"
+            },
+            {
+              "type": "no_error_toast"
+            }
+          ],
+          "notes": "Loan Amount default should still be pre-filled. Must NOT restart at loan-type or confirm-details."
+        }
+      ]
+    },
+    {
+      "id": "fresh-drop-offer-resume",
+      "name": "Fresh — drop at offer page, resume via re-auth deep link",
+      "loanType": "fresh",
+      "description": "User reaches offer page, navigates to landing (drop-off), re-authenticates. OtpStep createBooking returns stateContext.deepLinkTarget → should land back on offer page, not pincode or earlier steps.",
+      "flow": [
+        {
+          "step": 1,
+          "phase": "setup",
+          "name": "Fresh setup — auth through PAN",
+          "url": "/lp/b2c/2",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileFresh}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            },
+            {
+              "type": "fill",
+              "label": "Pincode input",
+              "value": "{{loanDetails.pincode}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on pincode modal"
+            },
+            {
+              "type": "click",
+              "label": "Yes, That's Me"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "What are you looking for?"
+            }
+          ]
+        },
+        {
+          "step": 2,
+          "phase": "setup",
+          "name": "Fresh setup — loan type and gold weight to offer",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get New loan option card"
+            },
+            {
+              "type": "click",
+              "label": "Continue on loan type page"
+            },
+            {
+              "type": "click",
+              "label": "Select button on Lowest Interest Rate preference card"
+            },
+            {
+              "type": "click",
+              "label": "Show My Offers button on gold weight page"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Total Loan Amount"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/offer-page"
+            }
+          ],
+          "notes": "Do not re-click Loan Amount card or fill amount — default ₹5,00,000 is pre-selected"
+        },
+        {
+          "step": 3,
+          "phase": "drop",
+          "name": "Simulate drop-off — return to landing",
+          "actions": [
+            {
+              "type": "navigate",
+              "value": "/lp/b2c/2"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Get Started"
+            }
+          ],
+          "notes": "Simulates user closing tab or manually navigating to landing. bookingId + token cookies should persist."
+        },
+        {
+          "step": 4,
+          "phase": "resume",
+          "name": "Resume — re-auth should deep-link to offer page",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileFresh}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Total Loan Amount"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/offer-page"
+            },
+            {
+              "type": "no_error_toast"
+            }
+          ],
+          "notes": "Must NOT show Enter Pincode again — existing booking with deepLinkTarget skips pincode. If pincode appears, deep link resume is broken."
+        }
+      ]
+    },
+    {
+      "id": "fresh-reload-offer-session",
+      "name": "Fresh — page reload on offer page preserves session",
+      "loanType": "fresh",
+      "description": "sessionStorage jsonData + token/bookingId cookies should keep user on offer page after hard reload.",
+      "flow": [
+        {
+          "step": 1,
+          "phase": "setup",
+          "name": "Reach offer page",
+          "url": "/lp/b2c/2",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileFresh}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            },
+            {
+              "type": "fill",
+              "label": "Pincode input",
+              "value": "{{loanDetails.pincode}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on pincode modal"
+            },
+            {
+              "type": "click",
+              "label": "Yes, That's Me"
+            },
+            {
+              "type": "click",
+              "label": "Get New loan option card"
+            },
+            {
+              "type": "click",
+              "label": "Continue on loan type page"
+            },
+            {
+              "type": "click",
+              "label": "Select button on Lowest Interest Rate preference card"
+            },
+            {
+              "type": "click",
+              "label": "Show My Offers button on gold weight page"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Total Loan Amount"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/offer-page"
+            }
+          ]
+        },
+        {
+          "step": 2,
+          "phase": "reload",
+          "name": "Hard reload current page",
+          "actions": [
+            {
+              "type": "reload"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Total Loan Amount"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/offer-page"
+            },
+            {
+              "type": "no_error_toast"
+            }
+          ],
+          "notes": "If redirected to landing, sessionStorage hydration or bookingId guard failed"
+        }
+      ]
+    },
+    {
+      "id": "fresh-cold-resume-clear-session",
+      "name": "Fresh — cold resume after clearing sessionStorage",
+      "loanType": "fresh",
+      "description": "Clear sessionStorage but keep cookies. Re-auth via OTP should still deep-link correctly using backend stateContext.deepLinkTarget.",
+      "flow": [
+        {
+          "step": 1,
+          "phase": "setup",
+          "name": "Reach offer page",
+          "url": "/lp/b2c/2",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileFresh}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            },
+            {
+              "type": "fill",
+              "label": "Pincode input",
+              "value": "{{loanDetails.pincode}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on pincode modal"
+            },
+            {
+              "type": "click",
+              "label": "Yes, That's Me"
+            },
+            {
+              "type": "click",
+              "label": "Get New loan option card"
+            },
+            {
+              "type": "click",
+              "label": "Continue on loan type page"
+            },
+            {
+              "type": "click",
+              "label": "Select button on Lowest Interest Rate preference card"
+            },
+            {
+              "type": "click",
+              "label": "Show My Offers button on gold weight page"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Total Loan Amount"
+            }
+          ]
+        },
+        {
+          "step": 2,
+          "phase": "drop",
+          "name": "Clear sessionStorage and navigate to landing",
+          "actions": [
+            {
+              "type": "clear_storage",
+              "target": "sessionStorage"
+            },
+            {
+              "type": "navigate",
+              "value": "/lp/b2c/2"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Get Started"
+            }
+          ],
+          "notes": "Clears jsonData.webFlow from session — resume must rebuild webFlow from booking loan type via OtpStep syncWebFlowFromLoanType"
+        },
+        {
+          "step": 3,
+          "phase": "resume",
+          "name": "Resume — OTP deep link after cold session",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileFresh}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Total Loan Amount"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/offer-page"
+            },
+            {
+              "type": "no_error_toast"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "takeover-browser-back-shift-to-loan-type",
+      "name": "Takeover — browser back from shift page returns to loan type",
+      "loanType": "takeover",
+      "description": "Back from shift-your-loan/v1 should return to loan-type/v1 with Shift existing loan still selected.",
+      "flow": [
+        {
+          "step": 1,
+          "phase": "setup",
+          "name": "Reach shift-your-loan page",
+          "url": "/lp/b2c/2",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileTakeover}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            },
+            {
+              "type": "fill",
+              "label": "Pincode input",
+              "value": "{{loanDetails.pincode}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on pincode modal"
+            },
+            {
+              "type": "click",
+              "label": "Yes, That's Me"
+            },
+            {
+              "type": "click",
+              "label": "Shift existing loan option card"
+            },
+            {
+              "type": "click",
+              "label": "Continue on loan type page"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Upload"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/shift-your-loan/v1"
+            }
+          ]
+        },
+        {
+          "step": 2,
+          "phase": "back",
+          "name": "Press back — navbar back arrow on shift loan page",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Back arrow button on shift loan page header"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "What are you looking for?"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/loan-type/v1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "takeover-drop-shift-resume",
+      "name": "Takeover — drop at shift-your-loan, resume via re-auth",
+      "loanType": "takeover",
+      "description": "User selects takeover and lands on shift-your-loan but does not upload. Drop and re-auth should restore to shift-your-loan page.",
+      "flow": [
+        {
+          "step": 1,
+          "phase": "setup",
+          "name": "Takeover setup — auth through loan type to shift page",
+          "url": "/lp/b2c/2",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileTakeover}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            },
+            {
+              "type": "fill",
+              "label": "Pincode input",
+              "value": "{{loanDetails.pincode}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on pincode modal"
+            },
+            {
+              "type": "click",
+              "label": "Yes, That's Me"
+            },
+            {
+              "type": "click",
+              "label": "Shift existing loan option card"
+            },
+            {
+              "type": "click",
+              "label": "Continue on loan type page"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Upload"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/shift-your-loan/v1"
+            }
+          ]
+        },
+        {
+          "step": 2,
+          "phase": "drop",
+          "name": "Simulate drop-off — return to landing",
+          "actions": [
+            {
+              "type": "navigate",
+              "value": "/lp/b2c/2"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Get Started"
+            }
+          ]
+        },
+        {
+          "step": 3,
+          "phase": "resume",
+          "name": "Resume — re-auth should deep-link to shift-your-loan",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileTakeover}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Upload"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/shift-your-loan/v1"
+            },
+            {
+              "type": "no_error_toast"
+            }
+          ],
+          "notes": "webFlow must be takeover-flow (no gold-weight-details). Must NOT land on fresh-only pages."
+        }
+      ]
+    },
+    {
+      "id": "takeover-drop-offer-resume",
+      "name": "Takeover — drop at offer page, resume via re-auth",
+      "loanType": "takeover",
+      "description": "User completes shift page (Skip path) and reaches offer page. Drop and re-auth should restore to offer page with takeover webFlow intact.",
+      "flow": [
+        {
+          "step": 1,
+          "phase": "setup",
+          "name": "Takeover setup — reach offer page via Skip",
+          "url": "/lp/b2c/2",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileTakeover}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            },
+            {
+              "type": "fill",
+              "label": "Pincode input",
+              "value": "{{loanDetails.pincode}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on pincode modal"
+            },
+            {
+              "type": "click",
+              "label": "Yes, That's Me"
+            },
+            {
+              "type": "click",
+              "label": "Shift existing loan option card"
+            },
+            {
+              "type": "click",
+              "label": "Continue on loan type page"
+            },
+            {
+              "type": "click",
+              "label": "Skip"
+            },
+            {
+              "type": "click",
+              "label": "Show My Offers on shift loan page"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Total Loan Amount"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/offer-page"
+            }
+          ]
+        },
+        {
+          "step": 2,
+          "phase": "drop",
+          "name": "Simulate drop-off — return to landing",
+          "actions": [
+            {
+              "type": "navigate",
+              "value": "/lp/b2c/2"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Get Started"
+            }
+          ]
+        },
+        {
+          "step": 3,
+          "phase": "resume",
+          "name": "Resume — re-auth should deep-link to offer page",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileTakeover}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Total Loan Amount"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/offer-page"
+            },
+            {
+              "type": "no_error_toast"
+            }
+          ],
+          "notes": "Must NOT route to gold-weight-details or feature-preference (takeover webFlow excludes them)"
+        }
+      ]
+    },
+    {
+      "id": "takeover-reload-offer-session",
+      "name": "Takeover — page reload on offer page preserves session",
+      "loanType": "takeover",
+      "description": "Same as fresh reload test but for takeover webFlow on offer page.",
+      "flow": [
+        {
+          "step": 1,
+          "phase": "setup",
+          "name": "Reach offer page via takeover Skip path",
+          "url": "/lp/b2c/2",
+          "actions": [
+            {
+              "type": "click",
+              "label": "Get Started"
+            },
+            {
+              "type": "fill",
+              "label": "Mobile number input",
+              "value": "{{credentials.mobileTakeover}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on phone auth modal"
+            },
+            {
+              "type": "fill",
+              "label": "OTP input",
+              "value": "{{prompt.otp}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on OTP modal"
+            },
+            {
+              "type": "fill",
+              "label": "Pincode input",
+              "value": "{{loanDetails.pincode}}"
+            },
+            {
+              "type": "click",
+              "label": "Continue on pincode modal"
+            },
+            {
+              "type": "click",
+              "label": "Yes, That's Me"
+            },
+            {
+              "type": "click",
+              "label": "Shift existing loan option card"
+            },
+            {
+              "type": "click",
+              "label": "Continue on loan type page"
+            },
+            {
+              "type": "click",
+              "label": "Skip"
+            },
+            {
+              "type": "click",
+              "label": "Show My Offers on shift loan page"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Total Loan Amount"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/offer-page"
+            }
+          ]
+        },
+        {
+          "step": 2,
+          "phase": "reload",
+          "name": "Hard reload current page",
+          "actions": [
+            {
+              "type": "reload"
+            }
+          ],
+          "assertions": [
+            {
+              "type": "element_visible",
+              "label": "Total Loan Amount"
+            },
+            {
+              "type": "url_contains",
+              "value": "/lp/b2c/offer-page"
+            },
+            {
+              "type": "no_error_toast"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errorCases": [
+    {
+      "name": "Fresh resume — wrong page after drop (regression)",
+      "scenario": "fresh-drop-offer-resume",
+      "step": 4,
+      "override": {},
+      "expectedError": "Must not show Enter Pincode or What are you looking for? after resume when booking exists at offer stage"
+    },
+    {
+      "name": "Takeover resume — routed to fresh-only page (regression)",
+      "scenario": "takeover-drop-offer-resume",
+      "step": 3,
+      "override": {},
+      "expectedError": "Must not contain /lp/b2c/gold-weight-details/v1 or /lp/b2c/feature-preference/v1"
+    },
+    {
+      "name": "Session expired on protected page",
+      "scenario": "fresh-reload-offer-session",
+      "step": 2,
+      "override": {
+        "clearCookies": [
+          "token"
+        ]
+      },
+      "expectedError": "Redirect to landing or auth entry"
+    }
+  ],
+  "schedule": "0 10 * * 1-5",
+  "notifications": {
+    "slackWebhook": "{{env.SLACK_WEBHOOK_URL}}",
+    "email": "team@rupeek.com"
+  },
+  "executionNotes": "Scenarios are ordered for a single TEST_MOBILE_FRESH: early booking stages first, offer-page scenarios last. Runner clears cookies/sessionStorage between scenarios. Backend booking state still advances per mobile — if scenario 1 deep-links to offer instead of loan-type, reset/cancel the fresh booking once before re-running. Takeover scenarios use TEST_MOBILE_TAKEOVER independently."
+}

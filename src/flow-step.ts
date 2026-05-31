@@ -4,6 +4,7 @@ import {
   loadRules,
   planStep,
   resolveTemplates,
+  scenarioToTestRules,
 } from './agent';
 import { BrowserController, InvalidSelectorError } from './browser';
 import {
@@ -26,6 +27,7 @@ import {
   TestAction,
   TestAssertion,
   TestRules,
+  isStateManagementRules,
 } from './types';
 
 function sleep(ms: number): Promise<void> {
@@ -75,7 +77,7 @@ async function verifyAssertText(
 }
 
 function isOtpFillAction(action: TestAction): boolean {
-  return action.type === 'fill' && action.label.toLowerCase().includes('otp');
+  return action.type === 'fill' && (action.label?.toLowerCase().includes('otp') ?? false);
 }
 
 async function resolveOtpValue(rules: TestRules): Promise<string> {
@@ -92,12 +94,44 @@ async function resolveOtpValue(rules: TestRules): Promise<string> {
   return promptForOtp(rules.credentials.mobile);
 }
 
+function isDirectAction(action: TestAction): boolean {
+  return action.type === 'navigate' || action.type === 'reload' || action.type === 'clear_storage';
+}
+
+async function executeDirectAction(
+  browser: BrowserController,
+  action: TestAction,
+  rules: TestRules,
+  buildUrl: (baseUrl: string, stepUrl?: string) => string,
+  timeout?: number
+): Promise<void> {
+  switch (action.type) {
+    case 'navigate':
+      if (!action.value) throw new Error('Navigate action requires a value (path or URL)');
+      await browser.navigate(buildUrl(rules.site.baseUrl, action.value), timeout ?? rules.site.timeout);
+      break;
+    case 'reload':
+      await browser.reload(timeout ?? rules.site.timeout);
+      break;
+    case 'clear_storage':
+      await browser.clearStorage(action.target ?? 'sessionStorage');
+      break;
+    default:
+      throw new Error(`Not a direct action: ${action.type}`);
+  }
+}
+
 async function applyConfigPatchAndReload(
   healSession: HealSession,
   rules: TestRules,
   step: FlowStep,
   recovery: RecoveryPlan
 ): Promise<boolean> {
+  if (healSession.variant === 'state-management') {
+    console.log('  [HEAL] patch_config skipped for state-management variant (config is not auto-modified)');
+    return false;
+  }
+
   if (
     !recovery.patch ||
     recovery.confidence !== 'high' ||
@@ -108,7 +142,7 @@ async function applyConfigPatchAndReload(
   }
 
   const backupPath = backupConfig(healSession.configPath, healSession.variant);
-  persistFlowStepPatch(healSession.configPath, step.step, recovery.patch);
+  persistFlowStepPatch(healSession.configPath, step.step, recovery.patch, healSession.scenarioId);
   healSession.recordPatch({
     step: step.step,
     backupPath,
@@ -116,7 +150,15 @@ async function applyConfigPatchAndReload(
     reason: recovery.reason,
   });
 
-  Object.assign(rules, resolveTemplates(loadRules(healSession.configPath)));
+  const reloaded = loadRules(healSession.configPath);
+  if (healSession.scenarioId && isStateManagementRules(reloaded)) {
+    const scenario = reloaded.scenarios.find((s) => s.id === healSession.scenarioId);
+    if (scenario) {
+      Object.assign(rules, resolveTemplates(scenarioToTestRules(reloaded, scenario)));
+    }
+  } else if (!isStateManagementRules(reloaded)) {
+    Object.assign(rules, resolveTemplates(reloaded));
+  }
   console.log(`  [HEAL] Patched config for step ${step.step}: ${recovery.reason}`);
   console.log(`  [HEAL] Backup: ${backupPath}`);
   return true;
@@ -446,7 +488,10 @@ export async function runFlowStepWithHeal(
 
       while (true) {
         try {
-          if (action.type === 'assert_text') {
+          if (isDirectAction(action)) {
+            await executeDirectAction(browser, action, rules, buildUrl, timeout);
+            actionLog.selector = action.type;
+          } else if (action.type === 'assert_text') {
             await verifyAssertText(browser, action, timeout);
           } else {
             lastSelector = await executePlannedAction(

@@ -23,14 +23,24 @@ export class HealSession {
   readonly runId: string;
   readonly configPath: string;
   readonly variant: FlowVariant;
+  readonly runDir?: string;
+  readonly scenarioId?: string;
   readonly attempts: HealAttemptLog[] = [];
   readonly configPatches: ConfigPatchRecord[] = [];
   private readonly patchesPerStep = new Map<number, number>();
 
-  constructor(runId: string, configPath: string, variant: FlowVariant) {
+  constructor(
+    runId: string,
+    configPath: string,
+    variant: FlowVariant,
+    runDir?: string,
+    scenarioId?: string
+  ) {
     this.runId = runId;
     this.configPath = configPath;
     this.variant = variant;
+    this.runDir = runDir;
+    this.scenarioId = scenarioId;
   }
 
   canPatchStep(stepNumber: number): boolean {
@@ -56,10 +66,11 @@ export class HealSession {
   }
 
   writeHealLog(): string {
-    if (!fs.existsSync(REPORTS_DIR)) {
-      fs.mkdirSync(REPORTS_DIR, { recursive: true });
+    const dir = this.runDir ?? REPORTS_DIR;
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
-    const logPath = path.join(REPORTS_DIR, `heal-log-${this.runId}.json`);
+    const logPath = path.join(dir, 'heal-log.json');
     fs.writeFileSync(logPath, JSON.stringify(this.toHealLog(), null, 2), 'utf-8');
     return logPath;
   }
@@ -81,7 +92,14 @@ export function applyFlowStepPatch(rules: TestRules, stepNumber: number, patch: 
   if (!step) {
     throw new Error(`Step ${stepNumber} not found for config patch`);
   }
+  applyPatchToStep(step, patch);
+  return cloned;
+}
 
+function applyPatchToStep(
+  step: TestRules['flow'][number],
+  patch: ConfigPatch
+): void {
   if (patch.removeActionIndexes?.length) {
     const remove = new Set(patch.removeActionIndexes);
     step.actions = step.actions.filter((_, idx) => !remove.has(idx));
@@ -95,19 +113,34 @@ export function applyFlowStepPatch(rules: TestRules, stepNumber: number, patch: 
   if (patch.addNotes) {
     step.notes = step.notes ? `${step.notes} | ${patch.addNotes}` : patch.addNotes;
   }
-
-  return cloned;
 }
 
 export function persistFlowStepPatch(
   configPath: string,
   stepNumber: number,
-  patch: ConfigPatch
+  patch: ConfigPatch,
+  scenarioId?: string
 ): void {
   const raw = fs.readFileSync(configPath, 'utf-8');
-  const parsed = JSON.parse(raw) as TestRules;
-  const updated = applyFlowStepPatch(parsed, stepNumber, patch);
-  fs.writeFileSync(configPath, `${JSON.stringify(updated, null, 2)}\n`, 'utf-8');
+  const parsed = JSON.parse(raw) as TestRules & { scenarios?: { id: string; flow: TestRules['flow'] }[] };
+
+  if (scenarioId && parsed.scenarios) {
+    const scenario = parsed.scenarios.find((s) => s.id === scenarioId);
+    if (!scenario) {
+      throw new Error(`Scenario ${scenarioId} not found for config patch`);
+    }
+    const step = scenario.flow.find((s) => s.step === stepNumber);
+    if (!step) {
+      throw new Error(`Step ${stepNumber} not found in scenario ${scenarioId}`);
+    }
+    applyPatchToStep(step, patch);
+  } else {
+    const updated = applyFlowStepPatch(parsed as TestRules, stepNumber, patch);
+    fs.writeFileSync(configPath, `${JSON.stringify(updated, null, 2)}\n`, 'utf-8');
+    return;
+  }
+
+  fs.writeFileSync(configPath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf-8');
 }
 
 export function isPatchSafe(patch: ConfigPatch): boolean {
