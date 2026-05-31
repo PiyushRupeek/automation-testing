@@ -224,4 +224,5 @@ export interface ExecuteActionInput {
   action: ActionType;
   value?: string;
   file?: string;
+  label?: string;
 }

@@ -156,6 +156,7 @@ async function executePlannedAction(
       action: recoveryOverride.action ?? planAction,
       value: otpValue ?? recoveryOverride.value ?? action.value,
       file: filePath,
+      label: action.label,
     });
     return recoveryOverride.selector;
   }
@@ -174,6 +175,7 @@ async function executePlannedAction(
     action: plan.action,
     value: otpValue ?? plan.value,
     file: filePath,
+    label: action.label,
   });
 
   return plan.selector;
@@ -256,6 +258,7 @@ async function healActionFailure(
         action: plan.action ?? action.type,
         value: plan.value ?? action.value,
         file: action.file,
+        label: action.label,
       });
       healSession.recordAttempt({
         step: step.step,
@@ -328,6 +331,38 @@ async function healAssertionFailure(
   if (plan.type === 'wait_then_retry') {
     await sleep(plan.waitMs ?? 2000);
     return { retryStep: false, plan };
+  }
+
+  if (plan.type === 'retry' && plan.selector) {
+    try {
+      if (browser.getCurrentUrl().includes('meeting-slots')) {
+        await browser.executeAction({
+          selector: plan.selector,
+          action: plan.action ?? 'click',
+          label: 'First available Morning or Afternoon time slot on selected date',
+        });
+        await browser.clickMeetingSlotsContinue();
+      } else {
+        await browser.executeAction({
+          selector: plan.selector,
+          action: plan.action ?? 'click',
+          label: assertion.label,
+        });
+      }
+      healSession.recordAttempt({
+        step: step.step,
+        stepName: step.name,
+        context: 'assertion',
+        assertionIndex,
+        error: errorMsg,
+        recovery: plan,
+        outcome: 'recovered',
+        timestamp: new Date().toISOString(),
+      });
+      return { retryStep: false, plan };
+    } catch {
+      // fall through to failed
+    }
   }
 
   healSession.recordAttempt({
@@ -585,6 +620,8 @@ export async function runFlowStepWithHeal(
             }
 
             if (heal.plan.type === 'wait_then_retry') continue;
+
+            if (heal.plan.type === 'retry' && heal.plan.selector) continue;
 
             assertions.push({
               type: assertion.type,

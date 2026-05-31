@@ -92,12 +92,52 @@ export class BrowserController {
     return this.getPage().url();
   }
 
+  private isCtaLabel(label?: string): boolean {
+    if (!label) return false;
+    return /continue|submit|proceed|book emergency/i.test(label);
+  }
+
+  private async waitForMeetingContinueEnabled(timeoutMs = 20000): Promise<void> {
+    const page = this.getPage();
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const btn = page.locator('button[class*="ctaButton"], button:has-text("Continue")').first();
+      if ((await btn.count()) > 0 && !(await btn.isDisabled())) return;
+      await page.waitForTimeout(300);
+    }
+    throw new Error('Continue button is still disabled — no time slot selected');
+  }
+
+  private async clickFirstAvailableTimeSlot(): Promise<void> {
+    const page = this.getPage();
+    const slotLocator = page.locator('[class*="slotBtn"]:not([disabled])');
+    const count = await slotLocator.count();
+    if (count === 0) {
+      throw new Error('No available time slot buttons found for selected date');
+    }
+    const target = slotLocator.first();
+    await target.waitFor({ state: 'visible', timeout: 15000 });
+    await target.scrollIntoViewIfNeeded();
+    await target.click({ timeout: 15000 });
+    await page.waitForTimeout(500);
+  }
+
   private async isAlreadySelected(selector: string): Promise<boolean> {
     const page = this.getPage();
     const locator = page.locator(selector).first();
     if ((await locator.count()) === 0) return false;
     const className = (await locator.getAttribute('class')) ?? '';
     return /active/i.test(className);
+  }
+
+  private async clickNextAvailableDate(): Promise<void> {
+    const page = this.getPage();
+    const dates = page.locator('[class*="date"]:not([class*="selected"]), [class*="Date"]:not([class*="selected"])');
+    if ((await dates.count()) === 0) {
+      throw new Error('No alternate date available in calendar');
+    }
+    await dates.first().click({ timeout: 15000 });
+    await page.waitForTimeout(800);
   }
 
   private async fillInput(selector: string, value: string): Promise<void> {
@@ -209,16 +249,41 @@ export class BrowserController {
     await this.performClick(selector);
   }
 
+  async clickMeetingSlotsContinue(): Promise<void> {
+    await this.waitForMeetingContinueEnabled();
+    const page = this.getPage();
+    const btn = page.locator('button[class*="ctaButton"], button:has-text("Continue")').first();
+    await btn.waitFor({ state: 'visible', timeout: 15000 });
+    await btn.click({ timeout: 15000 });
+    await page.waitForTimeout(1000);
+  }
+
   async executeAction(input: ExecuteActionInput): Promise<void> {
     const page = this.getPage();
-    const { selector, action, value, file } = input;
+    const { selector, action, value, file, label } = input;
 
     switch (action) {
       case 'click':
+        if (label && /time slot on selected date/i.test(label)) {
+          try {
+            await this.clickFirstAvailableTimeSlot();
+          } catch (err) {
+            await this.clickNextAvailableDate();
+            await this.clickFirstAvailableTimeSlot();
+          }
+          break;
+        }
         if (await this.isAlreadySelected(selector)) {
           return;
         }
-        await this.clickWhenEnabled(selector);
+        if (this.isCtaLabel(label)) {
+          if (label && /continue on meeting slots/i.test(label)) {
+            await this.waitForMeetingContinueEnabled();
+          }
+          await this.clickWhenEnabled(selector);
+        } else {
+          await this.performClick(selector);
+        }
         break;
       case 'fill':
         validateFillSelector(selector);
