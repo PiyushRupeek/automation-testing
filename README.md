@@ -5,7 +5,7 @@ Config-driven end-to-end UI testing for the gold loan booking flow. Claude API i
 ## What this repo does
 
 - Reads all test steps from `config/test-rules.config.json` — no code changes when the UI changes slightly
-- Uses Claude (`claude-sonnet-4-20250514`) to resolve selectors and validate assertions
+- Uses Claude (`claude-sonnet-4-6`) to resolve selectors and validate assertions
 - Runs the full booking flow: Login → Eligibility → Loan Details → Branch & Slot → KYC → Confirm → Success
 - Tests error cases: wrong OTP, invalid PAN, below-minimum amount, oversized file upload
 - Generates self-contained HTML reports with screenshots
@@ -35,6 +35,10 @@ npm test              # full suite (happy path + error cases)
 npm run test:happy    # happy path only
 npm run test:errors   # error cases only
 npm run report        # open latest HTML report
+
+npm run build         # compile NestJS app
+npm run dev:api       # start HTTP API with hot reload
+npm run start:api     # start HTTP API (production build)
 ```
 
 ## Environment variables
@@ -42,6 +46,7 @@ npm run report        # open latest HTML report
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `ANTHROPIC_API_KEY` | Yes | Claude API key |
+| `ANTHROPIC_MODEL` | No | Claude model ID (default: `claude-sonnet-4-6`) |
 | `BASE_URL` | Yes | Gold loan booking site base URL |
 | `TEST_MOBILE` | Yes | Test phone number (fresh/takeover linear flows) |
 | `TEST_MOBILE_FRESH` | Yes* | Fresh-loan mobile for state-management scenarios |
@@ -55,8 +60,55 @@ npm run report        # open latest HTML report
 | `AUTO_HEAL` | No | Enable AI self-healing on failures (default: `true`; set `false` to disable) |
 | `AUTO_HEAL_MAX_ATTEMPTS` | No | Max heal retries per action/assertion (default: `3`) |
 | `HEADLESS` | No | Run browser headless (default: `true`; set `false` for local debugging) |
+| `PORT` | No | API server port (default: `3000`) |
+| `API_HOST` | No | API bind host (default: `0.0.0.0`) |
+| `MAX_CONCURRENT_RUNS` | No | Max parallel Playwright runs via API (default: `1`) |
+| `OTP_API_TIMEOUT_MS` | No | OTP wait timeout for API runs (default: `120000`) |
+| `RUN_CONTEXT` | No | `cli` or `api` — controls OTP provider (default: `cli`) |
 
 Never commit `.env`. Credentials in the rules config use `{{env.VAR_NAME}}` template syntax.
+
+## HTTP API
+
+Start the API server:
+
+```bash
+npm run build
+npm run start:api
+# or during development:
+npm run dev:api
+```
+
+Base path: `/api`
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `GET` | `/health` | Liveness check |
+| `POST` | `/runs` | Start async test run `{ "variant": "fresh", "mode": "happy", "autoHeal": true }` |
+| `GET` | `/runs` | List recent runs |
+| `GET` | `/runs/:id` | Run status and summary |
+| `GET` | `/runs/:id/events` | SSE stream (step progress, heartbeats) |
+| `GET` | `/runs/:id/report` | HTML report (`?format=json` for JSON) |
+| `POST` | `/runs/:id/otp` | Submit OTP during active run `{ "otp": "1234" }` |
+
+Example:
+
+```bash
+# Start a run
+curl -X POST http://localhost:3000/api/runs \
+  -H 'Content-Type: application/json' \
+  -d '{"variant":"fresh","mode":"happy"}'
+
+# Stream progress (SSE)
+curl -N http://localhost:3000/api/runs/<runId>/events
+
+# Submit OTP when prompted
+curl -X POST http://localhost:3000/api/runs/<runId>/otp \
+  -H 'Content-Type: application/json' \
+  -d '{"otp":"1234"}'
+```
+
+Set `RUN_CONTEXT=api` (automatic when using `start:api`) so OTP is collected via the API instead of the terminal.
 
 ## GitHub Secrets
 
@@ -72,19 +124,27 @@ Set in **Settings → Secrets and variables → Actions**:
 
 ```
 automated-testing/
-├── config/test-rules.config.json   # Single source of truth for all test data
+├── config/                         # Test rule JSON configs (fresh, takeover, state-management)
 ├── src/
-│   ├── runner.ts                   # Main entry point
-│   ├── flow-step.ts                # Flow step execution with self-heal loops
-│   ├── healer.ts                   # Config backup, patch, heal session
-│   ├── agent.ts                    # Claude API orchestration
-│   ├── browser.ts                  # Playwright browser control
-│   ├── reporter.ts                 # HTML report generator
-│   ├── run-output.ts               # Per-run dated output folders
-│   └── types.ts                    # TypeScript definitions
+│   ├── main.ts                     # NestJS HTTP API bootstrap
+│   ├── cli.ts                      # CLI entry (npm test scripts)
+│   ├── app.module.ts
+│   ├── common/
+│   │   ├── config/                 # Nest ConfigModule
+│   │   └── types/                  # Shared TypeScript types
+│   └── modules/
+│       ├── agent/                  # Claude API (planStep, heal, assertions)
+│       ├── browser/                # Playwright browser control
+│       ├── config-rules/           # Load/resolve test rule configs
+│       ├── flow-step/              # Step execution with self-heal loops
+│       ├── healer/                 # Config backup, patch, heal session
+│       ├── otp/                    # Terminal + API OTP providers
+│       ├── reports/                # HTML reports and run output dirs
+│       ├── test-engine/            # Test orchestration (from runner.ts)
+│       └── runs/                   # HTTP API for runs, SSE, OTP
 ├── config/backups/                 # Auto-heal config backups (gitignored)
 ├── tests/fixtures/                 # Sample KYC documents for upload tests
-├── reports/                        # Per-run folders (gitignored, see below)
+├── reports/                        # Per-run folders (gitignored)
 ├── mcp.config.json                 # MCP servers for IDE debugging
 └── .github/workflows/test.yml      # CI/CD pipeline
 ```
@@ -191,7 +251,12 @@ To add an error case:
 
 ## Architecture note
 
-The test runner uses Playwright directly for browser control (CI-compatible). The `mcp.config.json` file configures MCP servers for Claude Code / Cursor IDE debugging workflows.
+The app is a **NestJS** backend with two entry points:
+
+- **`src/cli.ts`** — runs tests from the terminal (`npm run test:*`). Uses `TerminalOtpProvider` for interactive OTP.
+- **`src/main.ts`** — HTTP API for triggering runs, streaming progress (SSE), and submitting OTP via REST.
+
+Both share the same `TestEngineService` and domain modules. Playwright runs browser control directly (CI-compatible). The `mcp.config.json` file configures MCP servers for Claude Code / Cursor IDE debugging workflows.
 
 ## Exit codes
 

@@ -1,7 +1,8 @@
-import { chromium, Browser, BrowserContext, Locator, Page } from 'playwright';
+import { Injectable } from '@nestjs/common';
+import { chromium, Browser, BrowserContext, Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ExecuteActionInput } from './types';
+import { ExecuteActionInput } from '../../common/types';
 
 export class InvalidSelectorError extends Error {
   constructor(message: string) {
@@ -26,8 +27,6 @@ function resolveChromiumExecutablePath(): string | undefined {
   const fromEnv = process.env.CHROME_EXECUTABLE_PATH?.trim();
   if (fromEnv) return fromEnv;
 
-  // Playwright browser downloads can be flaky in some sandboxed environments.
-  // Prefer the system Chrome on macOS when available.
   if (process.platform === 'darwin') {
     const candidates = [
       '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -42,7 +41,7 @@ function resolveChromiumExecutablePath(): string | undefined {
   return undefined;
 }
 
-export class BrowserController {
+export class BrowserSession {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
@@ -182,12 +181,8 @@ export class BrowserController {
     await locator.waitFor({ state: 'visible', timeout: 15000 });
     await locator.click({ timeout: 15000 });
 
-    // React-controlled inputs sometimes ignore Playwright fill/typing unless we use
-    // the native HTMLInputElement value setter + bubbling input/change events.
     const setValueViaNativeSetter = async (next: string): Promise<void> => {
       await locator.evaluate((el, val) => {
-        // Use `any` here because this code executes in the browser context; this
-        // project doesn't include DOM libs in tsconfig.
         const input = el as any;
         const setter = Object.getOwnPropertyDescriptor(
           (globalThis as any).HTMLInputElement?.prototype,
@@ -213,16 +208,13 @@ export class BrowserController {
       return current === value;
     };
 
-    // 1) Clear + set via native setter (best for React controlled inputs)
     await setValueViaNativeSetter('');
     if (value) await setValueViaNativeSetter(value);
 
-    // 2) Fallback to Playwright fill
     if (!(await isValueApplied())) {
       await locator.fill(value);
     }
 
-    // 3) Last resort: type sequentially
     if (!(await isValueApplied())) {
       await locator.fill('');
       if (value) {
@@ -246,7 +238,6 @@ export class BrowserController {
     const page = this.getPage();
     await page.waitForTimeout(100);
 
-    // Prefer exact text targeting for selectable cards (avoids outer wrapper divs).
     const textMatch = selector.match(/has-text\(['"](.+?)['"]\)/);
     if (textMatch) {
       const text = textMatch[1].replace(/\\'/g, "'");
@@ -302,7 +293,7 @@ export class BrowserController {
         if (label && /time slot on selected date/i.test(label)) {
           try {
             await this.clickFirstAvailableTimeSlot();
-          } catch (err) {
+          } catch {
             await this.clickNextAvailableDate();
             await this.clickFirstAvailableTimeSlot();
           }
@@ -384,5 +375,12 @@ export class BrowserController {
       this.browser = null;
     }
     this.page = null;
+  }
+}
+
+@Injectable()
+export class BrowserService {
+  createForRun(screenshotsDir: string): BrowserSession {
+    return new BrowserSession(screenshotsDir);
   }
 }
