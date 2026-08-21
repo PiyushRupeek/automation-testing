@@ -1,0 +1,86 @@
+{
+  "flowVariant": "login",
+  "site": {
+    "baseUrl": "{{env.ONESTOP_BASE_URL}}",
+    "name": "Rupeek LeadFusion — Agent Login",
+    "timeout": 30000
+  },
+  "credentials": {
+    "mobile": "{{env.ONESTOP_MOBILE}}",
+    "otp": "{{env.ONESTOP_OTP}}",
+    "pan": ""
+  },
+  "loanDetails": {
+    "amount": 0,
+    "goldWeight": 0,
+    "purity": "",
+    "purpose": "",
+    "pincode": ""
+  },
+  "flow": [
+    {
+      "step": 1,
+      "name": "Sign In — Enter phone and request OTP",
+      "url": "/sign-in",
+      "notes": "Page loads with heading 'Login' and subheading 'Rupeek Sales App'. Fill 10-digit phone, click Send OTP.",
+      "actions": [
+        {
+          "type": "fill",
+          "label": "Phone number input field",
+          "value": "{{credentials.mobile}}"
+        },
+        {
+          "type": "click",
+          "label": "Send OTP button"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "4 digit OTP input field (placeholder 0000)"
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Sign In — Enter OTP and login",
+      "notes": "Form switches to OTP step showing the entered phone number. Fill 4-digit OTP received via SMS, click Login.",
+      "actions": [
+        {
+          "type": "fill",
+          "label": "4 digit OTP input field",
+          "value": "{{prompt.otp}}"
+        },
+        {
+          "type": "click",
+          "label": "Login button"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "no_error_toast",
+          "label": "No login error toast"
+        },
+        {
+          "type": "element_visible",
+          "label": "Dashboard home screen — any of: Check In link, Check Out banner, Today Schedule card, or Backlog card"
+        }
+      ]
+    }
+  ],
+  "errorCases": [
+    {
+      "name": "Wrong OTP shows inline error",
+      "step": 2,
+      "override": {
+        "credentials.otp": "0000"
+      },
+      "expectedError": "Please check the otp entered"
+    }
+  ],
+  "schedule": "",
+  "notifications": {
+    "slackWebhook": "{{env.SLACK_WEBHOOK_URL}}",
+    "email": ""
+  }
+}

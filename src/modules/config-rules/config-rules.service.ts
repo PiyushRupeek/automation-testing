@@ -34,13 +34,10 @@ export class ConfigRulesService {
   parseVariantFromArgv(argv: string[]): FlowVariant {
     const idx = argv.indexOf('--variant');
     if (idx !== -1 && argv[idx + 1]) {
-      const v = argv[idx + 1];
-      if (v === 'fresh' || v === 'takeover' || v === 'state-management') return v;
+      return argv[idx + 1] as FlowVariant;
     }
     const envVariant = process.env.TEST_VARIANT;
-    if (envVariant === 'fresh' || envVariant === 'takeover' || envVariant === 'state-management') {
-      return envVariant;
-    }
+    if (envVariant) return envVariant as FlowVariant;
     return 'fresh';
   }
 

@@ -30,7 +30,7 @@ export interface Credentials {
   pan: string;
 }
 
-export type FlowVariant = 'fresh' | 'takeover' | 'state-management';
+export type FlowVariant = 'fresh' | 'takeover' | 'state-management' | (string & {});
 
 export type Product = 'b2c-lp2' | 'onestop' | (string & {});
 
