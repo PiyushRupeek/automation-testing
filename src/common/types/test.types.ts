@@ -32,6 +32,8 @@ export interface Credentials {
 
 export type FlowVariant = 'fresh' | 'takeover' | 'state-management';
 
+export type Product = 'b2c-lp2' | 'onestop' | (string & {});
+
 export interface LoanDetails {
   amount: number;
   goldWeight: number;

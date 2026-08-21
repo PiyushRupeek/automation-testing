@@ -20,7 +20,11 @@
     "test:errors": "ts-node -r reflect-metadata src/cli.ts --variant fresh --mode errors",
     "test:errors:fresh": "ts-node -r reflect-metadata src/cli.ts --variant fresh --mode errors",
     "test:errors:takeover": "ts-node -r reflect-metadata src/cli.ts --variant takeover --mode errors",
-    "report": "open reports/latest/report.html"
+    "test:onestop": "ts-node -r reflect-metadata src/cli.ts --product onestop --variant fresh",
+    "test:onestop:happy": "ts-node -r reflect-metadata src/cli.ts --product onestop --variant fresh --mode happy",
+    "test:auto:onestop": "AUTO_HEAL=true ts-node -r reflect-metadata src/cli.ts --product onestop --variant fresh --mode happy",
+    "report": "open reports/b2c-lp2/latest/report.html",
+    "report:onestop": "open reports/onestop/latest/report.html"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",

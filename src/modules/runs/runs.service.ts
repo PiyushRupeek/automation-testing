@@ -7,11 +7,11 @@ import { RunJob, RunManagerService } from './run-manager.service';
 export class RunsService {
   constructor(private readonly runManager: RunManagerService) {}
 
-  startRun(body: { variant: FlowVariant; mode?: RunMode; autoHeal?: boolean }): { runId: string } {
+  startRun(body: { product?: string; variant: FlowVariant; mode?: RunMode; autoHeal?: boolean }): { runId: string } {
     const variant = body.variant;
     const mode =
       body.mode ?? (variant === 'state-management' ? 'scenarios' : 'all');
-    const job = this.runManager.createJob(variant, mode, body.autoHeal);
+    const job = this.runManager.createJob(variant, mode, body.autoHeal, body.product);
     return { runId: job.runId };
   }
 

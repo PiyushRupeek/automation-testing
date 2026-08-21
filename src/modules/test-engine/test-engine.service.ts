@@ -79,7 +79,8 @@ export class TestEngineService {
     pageHTML: string,
     currentUrl: string,
     expectedError: string,
-    lastResult?: StepResult | null
+    lastResult?: StepResult | null,
+    baseUrl?: string
   ): boolean {
     const lower = expectedError.toLowerCase();
     const htmlLower = pageHTML.toLowerCase();
@@ -97,8 +98,16 @@ export class TestEngineService {
     }
 
     if (lower.includes('redirect') && (lower.includes('landing') || lower.includes('auth'))) {
+      let landingPath = '/lp/b2c/2';
+      if (baseUrl) {
+        try {
+          landingPath = new URL(baseUrl).pathname;
+        } catch {
+          landingPath = baseUrl;
+        }
+      }
       return (
-        (currentUrl.includes('/lp/b2c/2') || currentUrl.endsWith('/lp/b2c/2')) &&
+        (currentUrl.includes(landingPath) || currentUrl.endsWith(landingPath)) &&
         !currentUrl.includes('/offer-page') &&
         !currentUrl.includes('/gold-weight-details') &&
         !currentUrl.includes('/shift-your-loan')
@@ -112,14 +121,16 @@ export class TestEngineService {
   }
 
   async runFromCli(argv: string[]): Promise<number> {
+    const product = this.configRules.parseProductFromArgv(argv);
     const variant = this.configRules.parseVariantFromArgv(argv);
     const mode = this.parseMode(variant, argv);
-    const result = await this.runTestSuite({ variant, mode, argv });
+    const result = await this.runTestSuite({ product, variant, mode, argv });
     return result.failed > 0 ? 1 : 0;
   }
 
   async runTestSuite(options: RunTestSuiteOptions): Promise<RunResult & { runDir: string; htmlPath: string }> {
     const argv = options.argv ?? process.argv;
+    const product = options.product ?? 'b2c-lp2';
     const variant = options.variant;
     const mode = options.mode ?? this.parseMode(variant, argv);
     const runStart = Date.now();
@@ -133,18 +144,18 @@ export class TestEngineService {
 
     this.agent.resetCostEstimate();
 
-    const { runDir, screenshotsDir, dirName } = this.runOutput.createRunOutputDir(timestamp, variant, mode);
+    const { runDir, screenshotsDir, dirName } = this.runOutput.createRunOutputDir(timestamp, variant, mode, product);
 
-    console.log(`Starting test run (${variant}, ${mode}) — ${runId}`);
-    console.log(`Run output: reports/${dirName}/`);
+    console.log(`Starting test run (${product}/${variant}, ${mode}) — ${runId}`);
+    console.log(`Run output: reports/${product}/${dirName}/`);
     if (autoHeal) {
       console.log('Self-healing enabled (use --no-auto-heal to disable)');
     }
 
     options.onProgress?.({ type: 'run_started' });
 
-    const configPath = this.configRules.getRulesConfigPath(variant);
-    const rules = this.configRules.loadRules(configPath, variant);
+    const configPath = this.configRules.getRulesConfigPath(variant, product);
+    const rules = this.configRules.loadRules(configPath, variant, product);
     const browser = this.browserService.createForRun(screenshotsDir);
     const stepResults: StepResult[] = [];
 
@@ -242,6 +253,7 @@ export class TestEngineService {
       runId,
       timestamp,
       site: siteName,
+      product,
       totalSteps: stepResults.length,
       passed,
       failed,
@@ -414,7 +426,8 @@ export class TestEngineService {
       pageHTML,
       currentUrl,
       errorCase.expectedError,
-      lastResult
+      lastResult,
+      rules.site.baseUrl
     );
 
     const screenshot = await browser.screenshot(

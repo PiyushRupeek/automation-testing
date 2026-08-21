@@ -1,7 +1,11 @@
-import { IsBoolean, IsIn, IsOptional } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 import { FlowVariant, RunMode } from '../../../common/types';
 
 export class StartRunDto {
+  @IsOptional()
+  @IsString()
+  product?: string;
+
   @IsIn(['fresh', 'takeover', 'state-management'])
   variant!: FlowVariant;
 
@@ -16,6 +20,7 @@ export class StartRunDto {
 
 export interface RunTestSuiteOptions {
   runId?: string;
+  product?: string;
   variant: FlowVariant;
   mode: RunMode;
   autoHeal?: boolean;

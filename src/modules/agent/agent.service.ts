@@ -37,7 +37,14 @@ Rules:
 const REPORT_SUMMARY_SYSTEM = `You are a QA report writer. Given a JSON test run result, write a concise plain-English summary
 of what passed, what failed, and likely root causes. Return only the summary text, no JSON.`;
 
-const DIAGNOSE_FAILURE_SYSTEM = `You are a self-healing UI test automation expert for Rupeek B2C LP2 gold loan booking.
+function buildDiagnoseFailureSystem(siteName: string, baseUrl: string): string {
+  let urlPath: string;
+  try {
+    urlPath = new URL(baseUrl).pathname;
+  } catch {
+    urlPath = baseUrl;
+  }
+  return `You are a self-healing UI test automation expert for ${siteName}.
 Given a failed action or assertion, the page HTML, screenshot, and error, return a recovery plan as JSON.
 
 Rules:
@@ -54,8 +61,8 @@ Rules:
      NEVER replace assertions with text from the current (wrong) page when navigation has not completed yet.
      Example: do not change 'Total Loan Amount' (offer page) to 'Loan Amount' (gold-weight page) — that masks a failed Show My Offers click.
   6. abort — wrong credentials, hard app bug, or unrecoverable
-  7. LP2 SPA rules:
-     - Auth modal stays on /lp/b2c/2 until PAN confirm — do not expect confirm-details URL in modal steps
+  7. SPA rules:
+     - Auth modal stays on ${urlPath} until PAN confirm — do not expect confirm-details URL in modal steps
      - Prefer element_visible over url_contains when URL unchanged but screen changed
      - Preference cards: click "Select" button, not re-click active card
      - Never [value=...] fill selectors
@@ -64,6 +71,12 @@ Rules:
      - Try up to 3 different dates before emergency fallback
      - Emergency fallback (no slots on any date): click "Need an emergency slot?", select first slot in popup, click "Book Emergency Slot"
      - Do not click Continue until a time slot is selected`;
+}
+
+const DIAGNOSE_FAILURE_SYSTEM_DEFAULT = buildDiagnoseFailureSystem(
+  'Rupeek B2C LP2 gold loan booking',
+  'https://rupeek.com/lp/b2c/2'
+);
 
 @Injectable()
 export class AgentService {
@@ -227,7 +240,7 @@ export class AgentService {
     };
   }
 
-  async diagnoseFailure(failure: FailureContext): Promise<RecoveryPlan> {
+  async diagnoseFailure(failure: FailureContext, siteContext?: { name: string; baseUrl: string }): Promise<RecoveryPlan> {
     const userMessage = JSON.stringify({
       step: failure.step,
       context: failure.context,
@@ -255,8 +268,12 @@ export class AgentService {
         ]
       : userMessage;
 
+    const system = siteContext
+      ? buildDiagnoseFailureSystem(siteContext.name, siteContext.baseUrl)
+      : DIAGNOSE_FAILURE_SYSTEM_DEFAULT;
+
     const result = await this.callClaudeJson<RecoveryPlan>(
-      DIAGNOSE_FAILURE_SYSTEM,
+      system,
       content,
       1024,
       `heal:step${failure.step.step}:${failure.context}`

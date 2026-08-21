@@ -248,7 +248,7 @@ export class FlowStepService {
       pageHTML: await browser.getPageHTML(),
       currentUrl: browser.getCurrentUrl(),
       screenshotBase64: await browser.screenshotBase64(),
-    });
+    }, { name: rules.site.name, baseUrl: rules.site.baseUrl });
 
     console.log(`  [HEAL] ${plan.type}: ${plan.reason}`);
 
@@ -354,7 +354,7 @@ export class FlowStepService {
       pageHTML: await browser.getPageHTML(),
       currentUrl: browser.getCurrentUrl(),
       screenshotBase64: await browser.screenshotBase64(),
-    });
+    }, { name: rules.site.name, baseUrl: rules.site.baseUrl });
 
     console.log(`  [HEAL] ${plan.type}: ${plan.reason}`);
 
