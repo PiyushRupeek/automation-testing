@@ -22,22 +22,22 @@
       "step": 1,
       "name": "Sign In — Enter phone and request OTP",
       "url": "/sign-in",
-      "notes": "Page loads with heading 'Login' and subheading 'Rupeek Sales App'. Fill 10-digit phone, click Send OTP.",
+      "notes": "Page has heading 'Login' and subheading 'Rupeek Sales App'. The phone field has a +91 country prefix displayed separately — fill only the 10-digit number into the input. The Send OTP button is a full-width orange button. After clicking, the form transitions to an OTP input screen.",
       "actions": [
         {
           "type": "fill",
-          "label": "Phone number input field",
+          "label": "phone number text input (the editable field next to the +91 country code prefix)",
           "value": "{{credentials.mobile}}"
         },
         {
           "type": "click",
-          "label": "Send OTP button"
+          "label": "Send OTP — the full-width orange submit button at the bottom of the login card"
         }
       ],
       "assertions": [
         {
           "type": "element_visible",
-          "label": "4 digit OTP input field (placeholder 0000)"
+          "label": "OTP input field with placeholder 0000 or label Enter the 4 digit OTP"
         }
       ]
     },
@@ -63,7 +63,7 @@
         },
         {
           "type": "element_visible",
-          "label": "Dashboard home screen — any of: Check In link, Check Out banner, Today Schedule card, or Backlog card"
+          "label": "any dashboard or check-in page content that confirms login redirect has completed (e.g. Check In link, Check Out banner, Today Schedule, or Check-In heading)"
         }
       ]
     }

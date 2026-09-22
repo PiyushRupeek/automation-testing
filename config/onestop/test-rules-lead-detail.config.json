@@ -1,0 +1,314 @@
+{
+  "flowVariant": "lead-detail",
+  "site": {
+    "baseUrl": "{{env.ONESTOP_BASE_URL}}",
+    "name": "Rupeek LeadFusion — Lead Detail & Disposition",
+    "timeout": 30000
+  },
+  "credentials": {
+    "mobile": "{{env.ONESTOP_MOBILE}}",
+    "otp": "{{env.ONESTOP_OTP}}",
+    "pan": ""
+  },
+  "loanDetails": {
+    "amount": 0,
+    "goldWeight": 0,
+    "purity": "",
+    "purpose": "",
+    "pincode": ""
+  },
+  "flow": [
+    {
+      "step": 1,
+      "name": "Sign In — Enter phone and request OTP",
+      "url": "/sign-in",
+      "notes": "The phone field has a +91 prefix. The Send OTP button is a full-width orange button.",
+      "actions": [
+        {
+          "type": "fill",
+          "label": "phone number text input (the editable field next to the +91 country code prefix)",
+          "value": "{{credentials.mobile}}"
+        },
+        {
+          "type": "click",
+          "label": "Send OTP — the full-width orange submit button at the bottom of the login card"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "OTP input field with placeholder 0000 or label Enter the 4 digit OTP"
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Sign In — Enter OTP and login",
+      "notes": "IMPORTANT: do not remove or patch these actions.",
+      "actions": [
+        {
+          "type": "fill",
+          "label": "4 digit OTP input field",
+          "value": "{{prompt.otp}}"
+        },
+        {
+          "type": "click",
+          "label": "Login button"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "no_error_toast",
+          "label": "No login error toast"
+        },
+        {
+          "type": "element_visible",
+          "label": "any dashboard or check-in page content that confirms login redirect has completed"
+        }
+      ]
+    },
+    {
+      "step": 3,
+      "name": "Leads List — Navigate and verify",
+      "url": "/leads/ongoing/NOT_STARTED",
+      "notes": "Navigate to the NOT_STARTED leads list. Verify leads are loaded.",
+      "actions": [],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Action Required tab"
+        },
+        {
+          "type": "element_visible",
+          "label": "at least one lead card in the list"
+        }
+      ]
+    },
+    {
+      "step": 4,
+      "name": "Lead 1 — Open first lead card",
+      "notes": "Click the > chevron or the phone number on the first lead card to navigate to lead detail.",
+      "actions": [
+        {
+          "type": "click",
+          "label": "the > chevron arrow or the phone number text on the first lead card — the navigation target that opens the lead detail page"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "url_contains",
+          "value": "/leads/details/"
+        },
+        {
+          "type": "element_visible",
+          "label": "Dialer call button at the bottom of the page"
+        }
+      ]
+    },
+    {
+      "step": 5,
+      "name": "Lead 1 — Click Dialer call and dismiss dialog",
+      "notes": "Click the Dialer call button in the fixed bottom bar. Chrome shows an 'Open Phone?' dialog — press Escape to dismiss it. After dismissing, the Lead Disposition dropdown (showing 'Select' or the current value with a down arrow) becomes active.",
+      "actions": [
+        {
+          "type": "click",
+          "label": "Dialer call button in the fixed bottom bar"
+        },
+        {
+          "type": "press",
+          "value": "Escape"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Lead Disposition label with a Select or current value dropdown below it"
+        }
+      ]
+    },
+    {
+      "step": 6,
+      "name": "Lead 1 — Select disposition: Not Interested",
+      "notes": "Click the Lead Disposition 'Select' dropdown on the left side of the disposition card. This opens a bottom sheet popup titled 'Lead Disposition' with radio button options: May Transact, Txn Completed, Ready to transact, RNR, Reschedule, Not Interested, Disqualified. Select 'Not Interested' radio button, then click the 'Update' orange button at the bottom of the popup. IMPORTANT: Use :has-text() for Playwright selectors, NEVER use :contains() which is invalid CSS.",
+      "actions": [
+        {
+          "type": "click",
+          "label": "Lead Disposition Select dropdown (the 'Select' text with down arrow on the left side of the disposition card)"
+        },
+        {
+          "type": "click",
+          "label": "Not Interested radio button option in the Lead Disposition bottom sheet popup"
+        },
+        {
+          "type": "click",
+          "label": "Update — the full-width orange button at the bottom of the Lead Disposition popup"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Lead Status dropdown is now visible or the disposition has been updated (Not Interested selected)"
+        }
+      ]
+    },
+    {
+      "step": 7,
+      "name": "Lead 1 — Go back to leads list",
+      "url": "/leads/ongoing/NOT_STARTED",
+      "notes": "Navigate back to the leads list to pick the next lead.",
+      "actions": [],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Action Required tab"
+        }
+      ]
+    },
+    {
+      "step": 8,
+      "name": "Lead 2 — Open second lead card",
+      "notes": "Click the > chevron or phone number on the SECOND lead card (not the first one we already processed). If the first lead moved to a different tab, click the new first card.",
+      "actions": [
+        {
+          "type": "click",
+          "label": "the > chevron arrow or the phone number text on the second lead card in the list (or the first card if the previous lead moved tabs)"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "url_contains",
+          "value": "/leads/details/"
+        },
+        {
+          "type": "element_visible",
+          "label": "Dialer call button at the bottom of the page"
+        }
+      ]
+    },
+    {
+      "step": 9,
+      "name": "Lead 2 — Click Dialer call and dismiss dialog",
+      "actions": [
+        {
+          "type": "click",
+          "label": "Dialer call button in the fixed bottom bar"
+        },
+        {
+          "type": "press",
+          "value": "Escape"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Lead Disposition label with a Select dropdown below it"
+        }
+      ]
+    },
+    {
+      "step": 10,
+      "name": "Lead 2 — Select disposition: RNR",
+      "notes": "Click Lead Disposition 'Select' dropdown, select 'RNR' from the bottom sheet, click 'Update'. IMPORTANT: Use :has-text() for selectors, NEVER :contains().",
+      "actions": [
+        {
+          "type": "click",
+          "label": "Lead Disposition Select dropdown"
+        },
+        {
+          "type": "click",
+          "label": "RNR radio button option in the Lead Disposition bottom sheet popup"
+        },
+        {
+          "type": "click",
+          "label": "Update — the full-width orange button at the bottom of the Lead Disposition popup"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Lead Status dropdown is now visible or the disposition has been updated (RNR selected)"
+        }
+      ]
+    },
+    {
+      "step": 11,
+      "name": "Lead 2 — Go back to leads list",
+      "url": "/leads/ongoing/NOT_STARTED",
+      "actions": [],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Action Required tab"
+        }
+      ]
+    },
+    {
+      "step": 12,
+      "name": "Lead 3 — Open third lead card",
+      "notes": "Click the > chevron or phone number on the next available lead card.",
+      "actions": [
+        {
+          "type": "click",
+          "label": "the > chevron arrow or the phone number text on the first available lead card in the list"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "url_contains",
+          "value": "/leads/details/"
+        }
+      ]
+    },
+    {
+      "step": 13,
+      "name": "Lead 3 — Click Dialer call and dismiss dialog",
+      "actions": [
+        {
+          "type": "click",
+          "label": "Dialer call button in the fixed bottom bar"
+        },
+        {
+          "type": "press",
+          "value": "Escape"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Lead Disposition label with a Select dropdown"
+        }
+      ]
+    },
+    {
+      "step": 14,
+      "name": "Lead 3 — Select disposition: Reschedule",
+      "notes": "Click Lead Disposition 'Select' dropdown, select 'Reschedule' from the bottom sheet, click 'Update'. IMPORTANT: Use :has-text() for selectors, NEVER :contains().",
+      "actions": [
+        {
+          "type": "click",
+          "label": "Lead Disposition Select dropdown"
+        },
+        {
+          "type": "click",
+          "label": "Reschedule radio button option in the Lead Disposition bottom sheet popup"
+        },
+        {
+          "type": "click",
+          "label": "Update — the full-width orange button at the bottom of the Lead Disposition popup"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "disposition updated (Reschedule selected)"
+        }
+      ]
+    }
+  ],
+  "errorCases": [],
+  "schedule": "",
+  "notifications": {
+    "slackWebhook": "{{env.SLACK_WEBHOOK_URL}}",
+    "email": ""
+  }
+}

@@ -108,11 +108,30 @@ export class AgentService {
 
   private parseJsonResponse<T>(text: string): T {
     const trimmed = text.trim();
-    const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
+    // Find first { then extract the complete JSON object using balanced brace counting.
+    // This avoids greedy regex over-matching when the API appends extra text after the JSON.
+    const start = trimmed.indexOf('{');
+    if (start === -1) {
       throw new Error(`No JSON object found in response: ${trimmed.slice(0, 200)}`);
     }
-    return JSON.parse(jsonMatch[0]) as T;
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let end = -1;
+    for (let i = start; i < trimmed.length; i++) {
+      const ch = trimmed[i];
+      if (escaped) { escaped = false; continue; }
+      if (ch === '\\' && inString) { escaped = true; continue; }
+      if (ch === '"') { inString = !inString; continue; }
+      if (!inString) {
+        if (ch === '{') depth++;
+        else if (ch === '}') { depth--; if (depth === 0) { end = i; break; } }
+      }
+    }
+    if (end === -1) {
+      throw new Error(`Incomplete JSON object in response: ${trimmed.slice(0, 200)}`);
+    }
+    return JSON.parse(trimmed.slice(start, end + 1)) as T;
   }
 
   private async callClaude(

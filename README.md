@@ -151,6 +151,8 @@ automated-testing/
 
 ## Updating tests
 
+**Frontend team:** use [`docs/B2C-LP2-CONFIG-GENERATOR-PROMPT.md`](docs/B2C-LP2-CONFIG-GENERATOR-PROMPT.md) as a copy-paste prompt for Claude AI to generate or update test rule JSON.
+
 Test configs for Rupeek B2C LP2:
 
 | File | Flow |

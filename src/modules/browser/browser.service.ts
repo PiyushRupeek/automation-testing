@@ -19,6 +19,12 @@ export function validateFillSelector(selector: string): void {
   }
 }
 
+/** Fix common invalid CSS selectors the AI may generate. */
+function sanitizeSelector(selector: string): string {
+  // :contains("text") is not valid CSS — replace with Playwright's :has-text("text")
+  return selector.replace(/:contains\(/g, ':has-text(');
+}
+
 function isHeadless(): boolean {
   return process.env.HEADLESS !== 'false';
 }
@@ -58,14 +64,43 @@ export class BrowserSession {
     }
 
     const executablePath = resolveChromiumExecutablePath();
+    const slowMo = process.env.SLOW_MO ? parseInt(process.env.SLOW_MO, 10) : 0;
     this.browser = await chromium.launch({
       headless: isHeadless(),
       executablePath,
+      slowMo: Number.isFinite(slowMo) && slowMo > 0 ? slowMo : undefined,
+      args: [
+        '--disable-features=ExternalProtocolDialog',  // suppress tel:/mailto: dialogs
+      ],
     });
     this.context = await this.browser.newContext({
       viewport: { width: 1280, height: 720 },
     });
     this.page = await this.context.newPage();
+
+    // Auto-dismiss any browser dialogs (alert, confirm, etc.)
+    this.page.on('dialog', async (dialog) => {
+      await dialog.dismiss();
+    });
+
+    // Block tel:/mailto: protocol URLs from triggering Chrome's "Open Phone?" dialog.
+    // React Native Web's Linking.openURL uses window.open or anchor clicks for tel: links.
+    await this.page.addInitScript(`
+      var origOpen = window.open.bind(window);
+      window.open = function(url) {
+        if (url && String(url).startsWith('tel:')) return null;
+        if (url && String(url).startsWith('mailto:')) return null;
+        return origOpen.apply(window, arguments);
+      };
+      document.addEventListener('click', function(e) {
+        var el = e.target;
+        while (el && el.tagName !== 'A') el = el.parentElement;
+        if (el && el.href && (el.href.startsWith('tel:') || el.href.startsWith('mailto:'))) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }, true);
+    `);
 
     this.page.on('console', (msg) => {
       if (msg.type() === 'error') {
@@ -87,12 +122,12 @@ export class BrowserSession {
 
   async navigate(url: string, timeout = 30000): Promise<void> {
     const page = this.getPage();
-    await page.goto(url, { waitUntil: 'networkidle', timeout });
+    await page.goto(url, { waitUntil: 'load', timeout });
   }
 
   async reload(timeout = 30000): Promise<void> {
     const page = this.getPage();
-    await page.reload({ waitUntil: 'networkidle', timeout });
+    await page.reload({ waitUntil: 'load', timeout });
   }
 
   async clearStorage(target = 'sessionStorage'): Promise<void> {
@@ -160,6 +195,12 @@ export class BrowserSession {
     const page = this.getPage();
     const locator = page.locator(selector).first();
     if ((await locator.count()) === 0) return false;
+    // Native buttons and submit controls are never "already selected" —
+    // only selectable card/option elements (like B2C loan-type cards) can be.
+    const tagName = await locator.evaluate((el) => el.tagName.toLowerCase());
+    if (tagName === 'button' || tagName === 'input') return false;
+    const role = (await locator.getAttribute('role')) ?? '';
+    if (role === 'button' || role === 'submit') return false;
     const className = (await locator.getAttribute('class')) ?? '';
     return /active/i.test(className);
   }
@@ -175,9 +216,10 @@ export class BrowserSession {
   }
 
   private async fillInput(selector: string, value: string): Promise<void> {
-    validateFillSelector(selector);
+    const safeSelector = sanitizeSelector(selector);
+    validateFillSelector(safeSelector);
     const page = this.getPage();
-    const locator = page.locator(selector).first();
+    const locator = page.locator(safeSelector).first();
     await locator.waitFor({ state: 'visible', timeout: 15000 });
     await locator.click({ timeout: 15000 });
 
@@ -238,25 +280,31 @@ export class BrowserSession {
     const page = this.getPage();
     await page.waitForTimeout(100);
 
-    const textMatch = selector.match(/has-text\(['"](.+?)['"]\)/);
-    if (textMatch) {
-      const text = textMatch[1].replace(/\\'/g, "'");
-      const byText = page.getByText(text, { exact: true });
-      if ((await byText.count()) > 0) {
-        const target = byText.first();
-        await target.waitFor({ state: 'visible', timeout: 15000 });
-        await target.scrollIntoViewIfNeeded();
-        await target.click({ timeout: 15000 });
-        await page.waitForTimeout(400);
-        return;
-      }
-    }
-
-    const locator = page.locator(selector).first();
+    const safeSelector = sanitizeSelector(selector);
+    const locator = page.locator(safeSelector).first();
     await locator.waitFor({ state: 'visible', timeout: 15000 });
     await locator.scrollIntoViewIfNeeded();
-    await locator.click({ timeout: 15000 });
-    await page.waitForTimeout(400);
+
+    const urlBefore = page.url();
+    try {
+      await locator.click({ timeout: 8000 });
+    } catch {
+      await locator.click({ force: true, timeout: 8000 });
+    }
+    await page.waitForTimeout(300);
+
+    // RNW Pressable components may not respond to Playwright's pointer events.
+    // Try progressively harder click methods until the page reacts.
+    if (page.url() === urlBefore) {
+      try { await locator.dispatchEvent('click'); } catch { /* detached */ }
+      await page.waitForTimeout(300);
+    }
+    if (page.url() === urlBefore) {
+      try { await locator.evaluate((el) => (el as any).click()); } catch { /* detached */ }
+      await page.waitForTimeout(300);
+    }
+
+    await page.waitForTimeout(200);
   }
 
   private async clickWhenEnabled(selector: string): Promise<void> {
@@ -272,7 +320,11 @@ export class BrowserSession {
     if (await locator.isDisabled()) {
       throw new Error(`Element is still disabled: ${selector}`);
     }
-    await this.performClick(selector);
+    try {
+      await this.performClick(selector);
+    } catch {
+      await locator.click({ force: true, timeout: 8000 });
+    }
   }
 
   async clickMeetingSlotsContinue(): Promise<void> {
@@ -329,6 +381,10 @@ export class BrowserSession {
         await page.uncheck(selector, { timeout: 15000 });
         break;
       case 'assert_text':
+        break;
+      case 'press':
+        await page.keyboard.press(value ?? 'Escape');
+        await page.waitForTimeout(300);
         break;
       default:
         throw new Error(`Unknown action type: ${action}`);

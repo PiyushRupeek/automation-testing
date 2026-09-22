@@ -22,29 +22,29 @@
       "step": 1,
       "name": "Sign In — Enter phone and request OTP",
       "url": "/sign-in",
-      "notes": "Page loads with heading 'Login' and subheading 'Rupeek Sales App'. Fill 10-digit phone, click Send OTP.",
+      "notes": "Page has heading 'Login' and subheading 'Rupeek Sales App'. The phone field has a +91 country prefix displayed separately — fill only the 10-digit number into the input. The Send OTP button is a full-width orange button. After clicking, the form transitions to an OTP input screen.",
       "actions": [
         {
           "type": "fill",
-          "label": "Phone number input field",
+          "label": "phone number text input (the editable field next to the +91 country code prefix)",
           "value": "{{credentials.mobile}}"
         },
         {
           "type": "click",
-          "label": "Send OTP button"
+          "label": "Send OTP — the full-width orange submit button at the bottom of the login card"
         }
       ],
       "assertions": [
         {
           "type": "element_visible",
-          "label": "4 digit OTP input field (placeholder 0000)"
+          "label": "OTP input field with placeholder 0000 or label Enter the 4 digit OTP"
         }
       ]
     },
     {
       "step": 2,
       "name": "Sign In — Enter OTP and login",
-      "notes": "Fill 4-digit OTP received via SMS, click Login. Redirected to dashboard or check-in screen.",
+      "notes": "Fill 4-digit OTP received via SMS, click Login. Redirected to dashboard or check-in screen. IMPORTANT: do not remove or patch the fill/click actions from this step — they are required every run.",
       "actions": [
         {
           "type": "fill",
@@ -60,6 +60,10 @@
         {
           "type": "no_error_toast",
           "label": "No login error toast"
+        },
+        {
+          "type": "element_visible",
+          "label": "any dashboard or check-in page content that confirms login redirect has completed (e.g. Check In link, Check Out banner, Today Schedule, or Check-In heading)"
         }
       ]
     },
@@ -151,38 +155,35 @@
     {
       "step": 8,
       "name": "Filter Panel — Close filter drawer without applying",
-      "notes": "X close icon appears in the filter drawer header. Clicking it dismisses the drawer without applying filters.",
+      "notes": "The X close icon is at the top-left of the filter drawer next to the 'Filter' heading. It is an SVG icon button — click it with force if needed. After closing, the filter drawer disappears and the leads list is visible again.",
       "actions": [
         {
           "type": "click",
-          "label": "X close icon in filter drawer header"
+          "label": "X close button at the top-left of the filter drawer header, next to the text Filter"
         }
       ],
       "assertions": [
         {
           "type": "element_visible",
-          "label": "Action Required tab (filter drawer closed, back to leads list)"
+          "label": "Action Required tab visible (filter drawer is now closed)"
         }
       ]
     },
     {
       "step": 9,
       "name": "Lead Detail — Open first lead card",
-      "notes": "Tap the header area of the first lead card in the list to navigate to its detail page. Requires at least one lead to exist in NOT_STARTED list.",
+      "url": "/leads/ongoing/NOT_STARTED",
+      "notes": "Navigate to the leads list fresh, then tap the first visible lead card. The card is a pressable div containing a phone number and customer name. Do NOT click the top navigation bar, header logo, or any tab — only click on the lead card item in the scrollable list below the tabs. The lead card navigates to /leads/details/[id].",
       "actions": [
         {
           "type": "click",
-          "label": "First lead card in the Action Required list (contains phone number and customer name)"
+          "label": "the > chevron arrow or the phone number text (e.g. 9100000023) on the first lead card — this is the navigation target that opens the lead detail page"
         }
       ],
       "assertions": [
         {
           "type": "url_contains",
           "value": "/leads/details/"
-        },
-        {
-          "type": "element_visible",
-          "label": "Dialer call button at the bottom of lead detail page"
         }
       ]
     }

@@ -8,7 +8,8 @@ export type ActionType =
   | 'assert_text'
   | 'navigate'
   | 'reload'
-  | 'clear_storage';
+  | 'clear_storage'
+  | 'press';
 
 export type AssertionType =
   | 'url_contains'
