@@ -5,6 +5,7 @@ export interface RunResult {
   runId: string;
   timestamp: string;
   site: string;
+  product?: string;
   totalSteps: number;
   passed: number;
   failed: number;

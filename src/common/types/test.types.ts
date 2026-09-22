@@ -8,7 +8,8 @@ export type ActionType =
   | 'assert_text'
   | 'navigate'
   | 'reload'
-  | 'clear_storage';
+  | 'clear_storage'
+  | 'press';
 
 export type AssertionType =
   | 'url_contains'
@@ -30,7 +31,9 @@ export interface Credentials {
   pan: string;
 }
 
-export type FlowVariant = 'fresh' | 'takeover' | 'state-management';
+export type FlowVariant = 'fresh' | 'takeover' | 'state-management' | (string & {});
+
+export type Product = 'b2c-lp2' | 'onestop' | (string & {});
 
 export interface LoanDetails {
   amount: number;

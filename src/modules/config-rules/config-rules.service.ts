@@ -21,25 +21,33 @@ const SPECIAL_TEMPLATE_PREFIXES = ['prompt.'];
 
 @Injectable()
 export class ConfigRulesService {
+  parseProductFromArgv(argv: string[]): string {
+    const idx = argv.indexOf('--product');
+    if (idx !== -1 && argv[idx + 1]) {
+      return argv[idx + 1];
+    }
+    const envProduct = process.env.TEST_PRODUCT;
+    if (envProduct) return envProduct;
+    return 'b2c-lp2';
+  }
+
   parseVariantFromArgv(argv: string[]): FlowVariant {
     const idx = argv.indexOf('--variant');
     if (idx !== -1 && argv[idx + 1]) {
-      const v = argv[idx + 1];
-      if (v === 'fresh' || v === 'takeover' || v === 'state-management') return v;
+      return argv[idx + 1] as FlowVariant;
     }
     const envVariant = process.env.TEST_VARIANT;
-    if (envVariant === 'fresh' || envVariant === 'takeover' || envVariant === 'state-management') {
-      return envVariant;
-    }
+    if (envVariant) return envVariant as FlowVariant;
     return 'fresh';
   }
 
-  getRulesConfigPath(variant: FlowVariant): string {
-    return path.join(process.cwd(), 'config', `test-rules-${variant}.config.json`);
+  getRulesConfigPath(variant: FlowVariant, product?: string): string {
+    const prod = product ?? 'b2c-lp2';
+    return path.join(process.cwd(), 'config', prod, `test-rules-${variant}.config.json`);
   }
 
-  loadRules(configPath?: string, variant?: FlowVariant): RulesConfig {
-    const filePath = configPath ?? this.getRulesConfigPath(variant ?? 'fresh');
+  loadRules(configPath?: string, variant?: FlowVariant, product?: string): RulesConfig {
+    const filePath = configPath ?? this.getRulesConfigPath(variant ?? 'fresh', product);
     const raw = fs.readFileSync(filePath, 'utf-8');
     const parsed = JSON.parse(raw) as RulesConfig;
     return this.resolveEnvTemplates(parsed) as RulesConfig;

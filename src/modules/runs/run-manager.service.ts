@@ -8,6 +8,7 @@ import { TestEngineService } from '../test-engine/test-engine.service';
 
 export interface RunJob {
   runId: string;
+  product?: string;
   variant: FlowVariant;
   mode: RunMode;
   autoHeal?: boolean;
@@ -39,10 +40,11 @@ export class RunManagerService {
     return Number.isFinite(n) && n > 0 ? n : 1;
   }
 
-  createJob(variant: FlowVariant, mode: RunMode, autoHeal?: boolean): RunJob {
+  createJob(variant: FlowVariant, mode: RunMode, autoHeal?: boolean, product?: string): RunJob {
     const runId = crypto.randomUUID();
     const job: RunJob = {
       runId,
+      product,
       variant,
       mode,
       autoHeal,
@@ -101,6 +103,7 @@ export class RunManagerService {
     try {
       const result = await this.testEngine.runTestSuite({
         runId,
+        product: job.product,
         variant: job.variant,
         mode: job.mode,
         autoHeal: job.autoHeal,

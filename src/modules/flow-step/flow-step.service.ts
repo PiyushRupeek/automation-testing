@@ -99,7 +99,7 @@ export class FlowStepService {
   }
 
   private isDirectAction(action: TestAction): boolean {
-    return action.type === 'navigate' || action.type === 'reload' || action.type === 'clear_storage';
+    return action.type === 'navigate' || action.type === 'reload' || action.type === 'clear_storage' || action.type === 'press';
   }
 
   private async executeDirectAction(
@@ -119,6 +119,9 @@ export class FlowStepService {
         break;
       case 'clear_storage':
         await browser.clearStorage(action.target ?? 'sessionStorage');
+        break;
+      case 'press':
+        await browser.executeAction({ selector: '', action: 'press', value: action.value ?? 'Escape' });
         break;
       default:
         throw new Error(`Not a direct action: ${action.type}`);
@@ -248,7 +251,7 @@ export class FlowStepService {
       pageHTML: await browser.getPageHTML(),
       currentUrl: browser.getCurrentUrl(),
       screenshotBase64: await browser.screenshotBase64(),
-    });
+    }, { name: rules.site.name, baseUrl: rules.site.baseUrl });
 
     console.log(`  [HEAL] ${plan.type}: ${plan.reason}`);
 
@@ -354,7 +357,7 @@ export class FlowStepService {
       pageHTML: await browser.getPageHTML(),
       currentUrl: browser.getCurrentUrl(),
       screenshotBase64: await browser.screenshotBase64(),
-    });
+    }, { name: rules.site.name, baseUrl: rules.site.baseUrl });
 
     console.log(`  [HEAL] ${plan.type}: ${plan.reason}`);
 

@@ -20,7 +20,17 @@
     "test:errors": "ts-node -r reflect-metadata src/cli.ts --variant fresh --mode errors",
     "test:errors:fresh": "ts-node -r reflect-metadata src/cli.ts --variant fresh --mode errors",
     "test:errors:takeover": "ts-node -r reflect-metadata src/cli.ts --variant takeover --mode errors",
-    "report": "open reports/latest/report.html"
+    "test:onestop:login": "ts-node -r reflect-metadata src/cli.ts --product onestop --variant login --no-auto-heal",
+    "test:onestop:login:happy": "ts-node -r reflect-metadata src/cli.ts --product onestop --variant login --mode happy --no-auto-heal",
+    "test:onestop:leads": "ts-node -r reflect-metadata src/cli.ts --product onestop --variant leads --no-auto-heal",
+    "test:onestop:leads:happy": "ts-node -r reflect-metadata src/cli.ts --product onestop --variant leads --mode happy --no-auto-heal",
+    "test:onestop:lead-detail": "ts-node -r reflect-metadata src/cli.ts --product onestop --variant lead-detail --no-auto-heal",
+    "test:onestop:lead-detail:happy": "ts-node -r reflect-metadata src/cli.ts --product onestop --variant lead-detail --mode happy --no-auto-heal",
+    "test:auto:onestop:login": "AUTO_HEAL=true ts-node -r reflect-metadata src/cli.ts --product onestop --variant login --mode happy",
+    "test:auto:onestop:leads": "AUTO_HEAL=true ts-node -r reflect-metadata src/cli.ts --product onestop --variant leads --mode happy",
+    "test:auto:onestop:lead-detail": "AUTO_HEAL=true ts-node -r reflect-metadata src/cli.ts --product onestop --variant lead-detail --mode happy",
+    "report": "open reports/b2c-lp2/latest/report.html",
+    "report:onestop": "open reports/onestop/latest/report.html"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",

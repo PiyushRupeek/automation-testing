@@ -11,7 +11,7 @@ import {
 } from '../../common/types';
 
 const REPORTS_DIR = path.join(process.cwd(), 'reports');
-const BACKUPS_DIR = path.join(process.cwd(), 'config', 'backups');
+
 
 const MAX_PATCHES_PER_RUN = 5;
 const MAX_PATCHES_PER_STEP = 1;
@@ -97,11 +97,12 @@ export class HealerService {
   }
 
   backupConfig(configPath: string, variant: FlowVariant): string {
-    if (!fs.existsSync(BACKUPS_DIR)) {
-      fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+    const backupsDir = path.join(path.dirname(configPath), 'backups');
+    if (!fs.existsSync(backupsDir)) {
+      fs.mkdirSync(backupsDir, { recursive: true });
     }
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupPath = path.join(BACKUPS_DIR, `${variant}-${stamp}.config.json`);
+    const backupPath = path.join(backupsDir, `${variant}-${stamp}.config.json`);
     fs.copyFileSync(configPath, backupPath);
     return backupPath;
   }

@@ -1,0 +1,204 @@
+{
+  "flowVariant": "leads",
+  "site": {
+    "baseUrl": "{{env.ONESTOP_BASE_URL}}",
+    "name": "Rupeek LeadFusion — Leads Navigation",
+    "timeout": 30000
+  },
+  "credentials": {
+    "mobile": "{{env.ONESTOP_MOBILE}}",
+    "otp": "{{env.ONESTOP_OTP}}",
+    "pan": ""
+  },
+  "loanDetails": {
+    "amount": 0,
+    "goldWeight": 0,
+    "purity": "",
+    "purpose": "",
+    "pincode": ""
+  },
+  "flow": [
+    {
+      "step": 1,
+      "name": "Sign In — Enter phone and request OTP",
+      "url": "/sign-in",
+      "notes": "Page has heading 'Login' and subheading 'Rupeek Sales App'. The phone field has a +91 country prefix displayed separately — fill only the 10-digit number into the input. The Send OTP button is a full-width orange button. After clicking, the form transitions to an OTP input screen.",
+      "actions": [
+        {
+          "type": "fill",
+          "label": "phone number text input (the editable field next to the +91 country code prefix)",
+          "value": "{{credentials.mobile}}"
+        },
+        {
+          "type": "click",
+          "label": "Send OTP — the full-width orange submit button at the bottom of the login card"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "OTP input field with placeholder 0000 or label Enter the 4 digit OTP"
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Sign In — Enter OTP and login",
+      "notes": "Fill 4-digit OTP received via SMS, click Login. Redirected to dashboard or check-in screen. IMPORTANT: do not remove or patch the fill/click actions from this step — they are required every run.",
+      "actions": [
+        {
+          "type": "fill",
+          "label": "4 digit OTP input field",
+          "value": "{{prompt.otp}}"
+        },
+        {
+          "type": "click",
+          "label": "Login button"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "no_error_toast",
+          "label": "No login error toast"
+        },
+        {
+          "type": "element_visible",
+          "label": "any dashboard or check-in page content that confirms login redirect has completed (e.g. Check In link, Check Out banner, Today Schedule, or Check-In heading)"
+        }
+      ]
+    },
+    {
+      "step": 3,
+      "name": "Leads List — Navigate to Action Required tab",
+      "url": "/leads/ongoing/NOT_STARTED",
+      "notes": "Navigate directly to leads list, bypassing check-in if the session already exists. Three tabs at top: Action Required, In Progress, Completed.",
+      "actions": [],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Action Required tab"
+        },
+        {
+          "type": "element_visible",
+          "label": "leads count label showing X of Y leads"
+        }
+      ]
+    },
+    {
+      "step": 4,
+      "name": "Leads List — Switch to In Progress tab",
+      "notes": "Clicking In Progress tab updates the URL to /leads/ongoing/IN_PROGRESS and reloads the list.",
+      "actions": [
+        {
+          "type": "click",
+          "label": "In Progress tab"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "url_contains",
+          "value": "IN_PROGRESS"
+        }
+      ]
+    },
+    {
+      "step": 5,
+      "name": "Leads List — Switch to Completed tab",
+      "notes": "Clicking Completed tab updates the URL to /leads/ongoing/COMPLETED.",
+      "actions": [
+        {
+          "type": "click",
+          "label": "Completed tab"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "url_contains",
+          "value": "COMPLETED"
+        }
+      ]
+    },
+    {
+      "step": 6,
+      "name": "Leads List — Switch back to Action Required tab",
+      "notes": "Return to the primary NOT_STARTED tab.",
+      "actions": [
+        {
+          "type": "click",
+          "label": "Action Required tab"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "url_contains",
+          "value": "NOT_STARTED"
+        }
+      ]
+    },
+    {
+      "step": 7,
+      "name": "Filter Panel — Open filter drawer",
+      "notes": "Filter icon is top-right beside the leads count label. Clicking it slides a filter drawer in from the right.",
+      "actions": [
+        {
+          "type": "click",
+          "label": "Filter icon button at top right of leads list"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Hot leads toggle switch inside filter drawer"
+        }
+      ]
+    },
+    {
+      "step": 8,
+      "name": "Filter Panel — Close filter drawer without applying",
+      "notes": "The X close icon is at the top-left of the filter drawer next to the 'Filter' heading. It is an SVG icon button — click it with force if needed. After closing, the filter drawer disappears and the leads list is visible again.",
+      "actions": [
+        {
+          "type": "click",
+          "label": "X close button at the top-left of the filter drawer header, next to the text Filter"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "element_visible",
+          "label": "Action Required tab visible (filter drawer is now closed)"
+        }
+      ]
+    },
+    {
+      "step": 9,
+      "name": "Lead Detail — Open first lead card",
+      "url": "/leads/ongoing/NOT_STARTED",
+      "notes": "Navigate to the leads list fresh, then tap the first visible lead card. The card is a pressable div containing a phone number and customer name. Do NOT click the top navigation bar, header logo, or any tab — only click on the lead card item in the scrollable list below the tabs. The lead card navigates to /leads/details/[id].",
+      "actions": [
+        {
+          "type": "click",
+          "label": "the > chevron arrow or the phone number text (e.g. 9100000023) on the first lead card — this is the navigation target that opens the lead detail page"
+        }
+      ],
+      "assertions": [
+        {
+          "type": "url_contains",
+          "value": "/leads/details/"
+        }
+      ]
+    }
+  ],
+  "errorCases": [
+    {
+      "name": "Filter returns no leads — empty state shown",
+      "step": 7,
+      "override": {},
+      "expectedError": "No leads found!!"
+    }
+  ],
+  "schedule": "",
+  "notifications": {
+    "slackWebhook": "{{env.SLACK_WEBHOOK_URL}}",
+    "email": ""
+  }
+}
