@@ -1,0 +1,150 @@
+{
+  "product": "rupeek-lp2",
+  "version": "1.0",
+  "description": "Rupeek B2C LP2 Gold Loan — Takeover (Shift Existing Loan) Flow",
+  "baseUrl": "{{env.BASE_URL}}",
+
+  "entryPoint": {
+    "path": "/lp/b2c/2",
+    "startAction": "Click the Get Started button"
+  },
+
+  "screens": [
+    {
+      "name": "Landing",
+      "identifiedBy": [
+        { "type": "url_contains", "value": "/lp/b2c/2" },
+        { "type": "element_visible", "value": "Get Started" }
+      ],
+      "expectedActions": ["Click Get Started"],
+      "phase": "entry"
+    },
+    {
+      "name": "Auth - Phone",
+      "identifiedBy": [
+        { "type": "element_visible", "value": "Enter Mobile Number" }
+      ],
+      "expectedActions": [
+        "Fill mobile number",
+        "Check consent checkbox",
+        "Click Continue"
+      ],
+      "phase": "auth"
+    },
+    {
+      "name": "Auth - OTP",
+      "identifiedBy": [
+        { "type": "element_visible", "value": "Enter the OTP" }
+      ],
+      "expectedActions": ["Fill OTP digits", "Click Verify or Continue"],
+      "phase": "auth",
+      "isAuthBarrier": true
+    },
+    {
+      "name": "Auth - Pincode",
+      "identifiedBy": [
+        { "type": "element_visible", "value": "Enter pincode" }
+      ],
+      "expectedActions": ["Fill pincode", "Click Continue"],
+      "phase": "auth"
+    },
+    {
+      "name": "PAN Confirmation",
+      "identifiedBy": [
+        { "type": "element_visible", "value": "PAN details" },
+        { "type": "element_visible", "value": "Yes, That's Me" }
+      ],
+      "expectedActions": ["Click Yes, That's Me"],
+      "phase": "auth"
+    },
+    {
+      "name": "Loan Type Selection - Takeover",
+      "identifiedBy": [
+        { "type": "element_visible", "value": "What are you looking for" }
+      ],
+      "expectedActions": ["Click Shift existing loan card", "Click Continue"],
+      "phase": "form"
+    },
+    {
+      "name": "Shift Loan - Pledge Card Upload",
+      "identifiedBy": [
+        { "type": "url_contains", "value": "shift-your-loan" },
+        { "type": "element_visible", "value": "pledge card" }
+      ],
+      "expectedActions": [
+        "Upload pledge card image",
+        "Click Show My Offers"
+      ],
+      "phase": "form",
+      "notes": "Upload action requires a real file — explorer will record the step structure with file template"
+    },
+    {
+      "name": "Offer Page",
+      "identifiedBy": [
+        { "type": "url_contains", "value": "offer-page" },
+        { "type": "element_visible", "value": "Total Loan Amount" }
+      ],
+      "expectedActions": [
+        "Click the first offer card",
+        "Click Proceed"
+      ],
+      "phase": "selection"
+    },
+    {
+      "name": "Meeting Slots",
+      "identifiedBy": [
+        { "type": "url_contains", "value": "meeting-slots" }
+      ],
+      "expectedActions": [
+        "Select a date from the calendar",
+        "Select a Morning or Afternoon time slot",
+        "Click Continue"
+      ],
+      "phase": "booking"
+    },
+    {
+      "name": "Thank You",
+      "identifiedBy": [
+        { "type": "url_contains", "value": "thank-you" },
+        { "type": "element_visible", "value": "submitted" }
+      ],
+      "expectedAssertions": [
+        "Loan request submitted",
+        "representative will reach out"
+      ],
+      "phase": "confirmation"
+    }
+  ],
+
+  "authConfig": {
+    "mobileField": "mobile number",
+    "otpField": "OTP",
+    "strategy": "pause_at_otp"
+  },
+
+  "templateMappings": [
+    { "fieldHint": "mobile", "templateVariable": "{{credentials.mobile}}", "inputType": "tel" },
+    { "fieldHint": "phone", "templateVariable": "{{credentials.mobile}}", "inputType": "tel" },
+    { "fieldHint": "OTP", "templateVariable": "{{prompt.otp}}" },
+    { "fieldHint": "verification code", "templateVariable": "{{prompt.otp}}" },
+    { "fieldHint": "pincode", "templateVariable": "{{loanDetails.pincode}}" },
+    { "fieldHint": "PAN", "templateVariable": "{{credentials.pan}}" }
+  ],
+
+  "explorationHints": {
+    "maxDepth": 15,
+    "preferredPath": [
+      "Landing",
+      "Auth - Phone",
+      "Auth - OTP",
+      "Auth - Pincode",
+      "PAN Confirmation",
+      "Loan Type Selection - Takeover",
+      "Shift Loan - Pledge Card Upload",
+      "Offer Page",
+      "Meeting Slots",
+      "Thank You"
+    ],
+    "avoidPatterns": ["/admin", "/api/", "/internal"]
+  }
+}
