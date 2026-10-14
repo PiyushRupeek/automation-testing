@@ -24,7 +24,12 @@ export class StagehandBrowserAdapter {
       fs.mkdirSync(this.screenshotsDir, { recursive: true });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        'ANTHROPIC_API_KEY is not set. Please set ANTHROPIC_API_KEY in your .env file or environment before running Stagehand exploration.'
+      );
+    }
     const llmClient = new ClaudeCustomLLMClient(apiKey);
 
     this.stagehand = new Stagehand({
