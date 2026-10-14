@@ -62,8 +62,9 @@ export class DiffMergeService {
       });
     }
 
-    // prefer_existing: keep existing, add newly discovered steps
-    const result = [...existing];
+    // prefer_existing: keep existing steps, insert newly discovered ones
+    // Clone elements to avoid mutating the caller's array
+    const result = existing.map(s => ({ ...s }));
     const alignment = this.alignSteps(generated, existing);
 
     for (const gen of generated) {
@@ -72,7 +73,7 @@ export class DiffMergeService {
         const insertIdx = this.findInsertPosition(gen, result);
         const reNumbered = { ...gen, step: insertIdx + 1 };
         result.splice(insertIdx, 0, reNumbered);
-        // Re-number all steps
+        // Re-number all steps after insertion
         result.forEach((s, i) => { s.step = i + 1; });
       }
     }

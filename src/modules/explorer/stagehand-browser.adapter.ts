@@ -3,8 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { Page } from 'playwright';
 import { z } from 'zod';
-import { CLAUDE_MODEL } from '../../common/constants';
 import { ObservedElement } from './types/explorer.types';
+import { ClaudeCustomLLMClient } from './claude-llm-client';
 
 @Injectable()
 export class StagehandBrowserAdapter {
@@ -24,13 +24,12 @@ export class StagehandBrowserAdapter {
       fs.mkdirSync(this.screenshotsDir, { recursive: true });
     }
 
+    const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
+    const llmClient = new ClaudeCustomLLMClient(apiKey);
+
     this.stagehand = new Stagehand({
       env: 'LOCAL',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      modelName: (process.env.ANTHROPIC_MODEL ?? CLAUDE_MODEL) as any,
-      modelClientOptions: {
-        apiKey: process.env.ANTHROPIC_API_KEY,
-      },
+      llmClient,
       headless: options.headless ?? true,
       enableCaching: false,
     });

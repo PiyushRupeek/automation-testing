@@ -136,7 +136,11 @@ export class ScreenAnalyzerService {
       }
 
       const confidence = checks > 0 ? score / checks : 0;
-      if (confidence > bestScore) {
+      // Note on tie-breaking: when two screens share equal confidence, the
+      // later-listed screen in the descriptor wins (>= condition). This is
+      // intentional — overlays and post-action screens are listed later in the
+      // descriptor and should take precedence over earlier base screens.
+      if (confidence >= bestScore && confidence > 0) {
         bestScore = confidence;
         bestMatch = screen;
       }
@@ -255,26 +259,27 @@ export class ScreenAnalyzerService {
   ): { element: ObservedElement; action: string; value?: string; reason: string }[] {
     const results: { element: ObservedElement; action: string; value?: string; reason: string }[] = [];
 
-    // Inputs first
+    // Inputs first — Playwright always returns lowercase tag names, so only check 'input'
     for (const el of elements) {
-      if (el.tagName === 'input' || el.tagName === 'INPUT' || el.role === 'textbox') {
-        results.push({ element: el, action: 'fill', value: '', reason: 'Input field' });
+      if (el.tagName === 'input' || el.role === 'textbox') {
+        // Skip recording a value here — Claude will supply values when prioritizing;
+        // fallback inputs are recorded without values to avoid empty strings in config
+        results.push({ element: el, action: 'fill', reason: 'Input field (fallback)' });
       }
     }
 
-    // Then buttons/CTAs
+    // Then buttons / CTAs
     for (const el of elements) {
       const desc = (el.description + ' ' + (el.text ?? '')).toLowerCase();
       if (
         el.role === 'button' ||
         el.tagName === 'button' ||
-        el.tagName === 'BUTTON' ||
         desc.includes('continue') ||
         desc.includes('submit') ||
         desc.includes('proceed') ||
         desc.includes('get started')
       ) {
-        results.push({ element: el, action: 'click', reason: 'Button/CTA' });
+        results.push({ element: el, action: 'click', reason: 'Button/CTA (fallback)' });
       }
     }
 

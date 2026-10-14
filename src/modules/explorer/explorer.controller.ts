@@ -1,5 +1,6 @@
 import {
   Body,
+  ConflictException,
   Controller,
   Get,
   NotFoundException,
@@ -10,6 +11,9 @@ import * as crypto from 'crypto';
 import { ExplorerService } from './explorer.service';
 import { ExploreRequestDto } from './dto/explore-request.dto';
 import { ExploreResult } from './types/explorer.types';
+
+/** How long (ms) to keep completed/failed job results in memory before auto-cleanup. */
+const JOB_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 interface ExplorationJob {
   id: string;
@@ -23,10 +27,31 @@ interface ExplorationJob {
 export class ExplorerController {
   private readonly jobs = new Map<string, ExplorationJob>();
 
+  /**
+   * ID of the currently running exploration, if any.
+   * StagehandBrowserAdapter is a singleton with a single browser instance,
+   * so parallel explorations would race on the same browser. We reject
+   * concurrent requests with 409 Conflict to prevent this.
+   */
+  private activeExplorationId: string | null = null;
+
   constructor(private readonly explorerService: ExplorerService) {}
 
   @Post('explore')
   startExploration(@Body() body: ExploreRequestDto): { explorationId: string } {
+    // Reject if another exploration is already in progress
+    if (this.activeExplorationId !== null) {
+      const running = this.jobs.get(this.activeExplorationId);
+      if (running?.status === 'running') {
+        throw new ConflictException(
+          `An exploration is already running (id: ${this.activeExplorationId}). ` +
+          `Poll GET /api/explore/${this.activeExplorationId} and wait for it to complete.`
+        );
+      }
+      // Previous job finished but we missed cleaning up the pointer — reset
+      this.activeExplorationId = null;
+    }
+
     const id = crypto.randomUUID();
     const job: ExplorationJob = {
       id,
@@ -34,6 +59,7 @@ export class ExplorerController {
       createdAt: new Date().toISOString(),
     };
     this.jobs.set(id, job);
+    this.activeExplorationId = id;
 
     // Run exploration in background
     this.explorerService
@@ -53,6 +79,14 @@ export class ExplorerController {
       .catch(err => {
         job.status = 'failed';
         job.error = err instanceof Error ? err.message : String(err);
+      })
+      .finally(() => {
+        // Release the concurrency lock
+        if (this.activeExplorationId === id) {
+          this.activeExplorationId = null;
+        }
+        // Schedule auto-cleanup so the jobs map doesn't grow unboundedly
+        setTimeout(() => this.jobs.delete(id), JOB_TTL_MS);
       });
 
     return { explorationId: id };

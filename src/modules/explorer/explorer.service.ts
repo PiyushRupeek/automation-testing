@@ -28,6 +28,7 @@ import {
 
 const DEFAULT_MAX_STEPS = 20;
 const LOOP_DETECTION_THRESHOLD = 3;
+const DEFAULT_VARIANT = 'fresh' as const;
 
 @Injectable()
 export class ExplorerService {
@@ -133,14 +134,19 @@ export class ExplorerService {
       await this.browser.waitForNetworkIdle();
 
       // Perform start action if specified
+      let entryScreenName: string | null = null;
       if (descriptor.entryPoint.startAction) {
         console.log(`[Explorer] Entry action: ${descriptor.entryPoint.startAction}`);
+        // Capture entry screen name before performing the action so we can skip it in the loop
+        const entryScreen = await this.screenAnalyzer.captureScreen(this.browser);
+        const entryMatch = this.screenAnalyzer.matchScreen(entryScreen, descriptor);
+        entryScreenName = entryMatch.matched?.name ?? null;
         await this.browser.act(descriptor.entryPoint.startAction);
         await this.browser.waitForNetworkIdle(3000);
       }
 
       // Core exploration loop
-      const result = await this.explorationLoop(descriptor, options, authBarriers);
+      const result = await this.explorationLoop(descriptor, options, authBarriers, entryScreenName);
       explorationLog.push(...result.steps);
       if (result.error) {
         status = 'partial';
@@ -178,7 +184,7 @@ export class ExplorerService {
   private async verifyMode(options: ExploreOptions): Promise<ExploreResult> {
     const start = Date.now();
     const configPath = options.existingConfigPath ??
-      this.configRules.getRulesConfigPath(options.variant ?? 'fresh');
+      this.configRules.getRulesConfigPath(options.variant ?? DEFAULT_VARIANT);
     const rules = this.configRules.loadRules(configPath);
 
     if (isStateManagementRules(rules)) {
@@ -198,34 +204,71 @@ export class ExplorerService {
       await this.browser.navigate(baseUrl);
       await this.browser.waitForNetworkIdle();
 
-      // Walk through existing config steps and verify each
+      // Walk through existing config steps, replaying each step's actions so we
+      // actually navigate the flow before capturing the screen for that step.
       for (const step of testRules.flow) {
-        console.log(`[Explorer:verify] Checking step ${step.step}: ${step.name}`);
-        const screen = await this.screenAnalyzer.captureScreen(this.browser);
-        const match = this.screenAnalyzer.matchScreen(screen, descriptor);
+        console.log(`[Explorer:verify] Step ${step.step}: ${step.name}`);
+
+        const screenBefore = await this.screenAnalyzer.captureScreen(this.browser);
+        const match = this.screenAnalyzer.matchScreen(screenBefore, descriptor);
+        console.log(`  Match: ${match.matched?.name ?? 'none'} (confidence: ${match.confidence.toFixed(2)})`);
+
+        // Check for auth barriers
+        const barrier = this.screenAnalyzer.classifyAuthBarrier(screenBefore, descriptor);
+        if (barrier) {
+          barrier.stepNumber = step.step;
+          authBarriers.push(barrier);
+          console.log(`  Auth barrier detected: ${barrier.type} — stopping verify`);
+          explorationLog.push(this.createBarrierStep(step.step, step.name, screenBefore, barrier));
+          break;
+        }
+
+        // Replay this step's actions against the live browser
+        const performed: PerformedAction[] = [];
+        for (const action of step.actions) {
+          const instruction = action.value
+            ? `${action.type} "${action.value}" in the ${action.label} field`
+            : `${action.type} the ${action.label}`;
+          try {
+            await this.browser.act(instruction);
+            await this.browser.waitForNetworkIdle(2000);
+            performed.push({
+              type: action.type,
+              description: action.label ?? '',
+              value: action.value,
+            });
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.warn(`  Action failed: ${msg}`);
+          }
+        }
+
+        const screenAfter = await this.screenAnalyzer.captureScreen(this.browser);
+        const transition = await this.screenAnalyzer.detectTransition(screenBefore, screenAfter);
 
         explorationLog.push({
           stepNumber: step.step,
           screenName: step.name,
-          screenBefore: screen,
-          screenAfter: screen,
-          actionsPerformed: [],
+          screenBefore,
+          screenAfter,
+          actionsPerformed: performed,
           transition: {
-            fromUrl: screen.url,
-            toUrl: screen.url,
-            urlChanged: false,
-            domSignificantChange: false,
+            fromUrl: screenBefore.url,
+            toUrl: screenAfter.url,
+            urlChanged: transition.isNewScreen && screenBefore.url !== screenAfter.url,
+            domSignificantChange: transition.isNewScreen,
             newElementsAppeared: [],
           },
         });
 
-        console.log(`  Match: ${match.matched?.name ?? 'none'} (confidence: ${match.confidence.toFixed(2)})`);
+        // Wait for any post-action navigation to settle before next step
+        await this.browser.waitForNetworkIdle(3000);
       }
     } finally {
       await this.browser.close();
     }
 
-    // Generate flow from what we observed
+    // Generate flow from what we observed and diff against existing
     const generatedFlow = this.flowGenerator.generateFlowSteps(explorationLog, descriptor);
     const diff = this.diffMerge.computeDiff(generatedFlow, testRules.flow);
 
@@ -251,7 +294,7 @@ export class ExplorerService {
 
     // Load existing config
     const configPath = options.existingConfigPath ??
-      this.configRules.getRulesConfigPath(options.variant ?? 'fresh');
+      this.configRules.getRulesConfigPath(options.variant ?? DEFAULT_VARIANT);
 
     if (!fs.existsSync(configPath)) {
       // No existing config — just return explore result as-is
@@ -282,7 +325,7 @@ export class ExplorerService {
     };
 
     // Backup existing config before writing
-    this.healer.backupConfig(configPath, options.variant ?? 'fresh');
+    this.healer.backupConfig(configPath, options.variant ?? DEFAULT_VARIANT);
 
     return {
       ...exploreResult,
@@ -298,24 +341,41 @@ export class ExplorerService {
   private async explorationLoop(
     descriptor: FlowDescriptor,
     options: ExploreOptions,
-    authBarriers: AuthBarrier[]
+    authBarriers: AuthBarrier[],
+    entryScreenName: string | null = null
   ): Promise<{ steps: ExplorationStep[]; error?: string }> {
     const steps: ExplorationStep[] = [];
     const visitedScreenKeys = new Map<string, number>();
-    const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
+    // Honour maxDepth from descriptor, then CLI option, then hard default
+    const maxSteps = options.maxSteps ?? descriptor.explorationHints?.maxDepth ?? DEFAULT_MAX_STEPS;
+    const avoidPatterns = descriptor.explorationHints?.avoidPatterns ?? [];
     let currentStepNum = 1;
+    let entryScreenSkipped = false;
+    let reachedLimit = false;
 
     while (currentStepNum <= maxSteps) {
       // 1. Capture current screen
       const screenBefore = await this.screenAnalyzer.captureScreen(this.browser);
       await this.browser.screenshot(`step-${currentStepNum}-before.png`);
 
-      // 2. Match against descriptor
+      // 2. Check avoid-patterns — back off if we've wandered somewhere we shouldn't be
+      if (avoidPatterns.some(pattern => screenBefore.url.includes(pattern))) {
+        console.warn(`[Explorer] Avoid-pattern matched on URL "${screenBefore.url}" — navigating back`);
+        try {
+          await this.browser.getPage().goBack();
+          await this.browser.waitForNetworkIdle(2000);
+        } catch {
+          return { steps, error: `Landed on avoided URL and could not go back: ${screenBefore.url}` };
+        }
+        continue;
+      }
+
+      // 3. Match against descriptor
       const match = this.screenAnalyzer.matchScreen(screenBefore, descriptor);
       const screenName = match.matched?.name ?? `Screen ${currentStepNum}`;
       console.log(`[Explorer] Step ${currentStepNum}: ${screenName} (confidence: ${match.confidence.toFixed(2)})`);
 
-      // 3. Loop detection
+      // 4. Loop detection
       const screenKey = this.deriveScreenKey(screenBefore);
       const visitCount = (visitedScreenKeys.get(screenKey) ?? 0) + 1;
       visitedScreenKeys.set(screenKey, visitCount);
@@ -325,7 +385,7 @@ export class ExplorerService {
         return { steps, error: `Loop detected at screen: ${screenName}` };
       }
 
-      // 4. Check for auth barrier
+      // 5. Check for auth barrier
       const barrier = this.screenAnalyzer.classifyAuthBarrier(screenBefore, descriptor);
       if (barrier) {
         barrier.stepNumber = currentStepNum;
@@ -334,17 +394,16 @@ export class ExplorerService {
 
         const handled = await this.handleAuthBarrier(barrier, descriptor, options);
         if (!handled) {
-          // Record the barrier step and continue
           steps.push(this.createBarrierStep(currentStepNum, screenName, screenBefore, barrier));
           return { steps, error: `Stopped at auth barrier: ${barrier.type}` };
         }
 
-        // After handling barrier, continue to next iteration
+        // Barrier was handled (e.g. OTP filled) — continue to next screen
         currentStepNum++;
         continue;
       }
 
-      // 5. Check for completion
+      // 6. Check for completion
       if (match.matched?.phase === 'confirmation') {
         console.log(`[Explorer] Reached confirmation screen: ${screenName}`);
         steps.push({
@@ -364,18 +423,26 @@ export class ExplorerService {
         break;
       }
 
-      // 6. Determine and execute actions
+      // 7. Skip entry screen on first encounter (entry action already performed before loop)
+      if (entryScreenName && screenName === entryScreenName && !entryScreenSkipped) {
+        console.log(`[Explorer] Skipping entry screen "${screenName}" actions (already performed by entryPoint.startAction)`);
+        entryScreenSkipped = true;
+        currentStepNum++;
+        continue;
+      }
+
+      // 8. Determine and execute actions
       const performed = await this.executeScreenActions(screenBefore, descriptor, match.matched, options);
 
-      // 7. Capture post-action screen
+      // 9. Capture post-action screen
       await this.browser.waitForNetworkIdle(3000);
       const screenAfter = await this.screenAnalyzer.captureScreen(this.browser);
       await this.browser.screenshot(`step-${currentStepNum}-after.png`);
 
-      // 8. Detect transition
+      // 10. Detect transition
       const transition = await this.screenAnalyzer.detectTransition(screenBefore, screenAfter);
 
-      // 9. Record step
+      // 11. Record step
       steps.push({
         stepNumber: currentStepNum,
         screenName,
@@ -396,11 +463,15 @@ export class ExplorerService {
       currentStepNum++;
     }
 
+    // If we exited the while loop by exhausting steps (not via break on confirmation)
     if (currentStepNum > maxSteps) {
-      return { steps, error: `Reached max steps limit (${maxSteps})` };
+      reachedLimit = true;
     }
 
-    return { steps };
+    return {
+      steps,
+      error: reachedLimit ? `Reached max steps limit (${maxSteps})` : undefined,
+    };
   }
 
   // --- Action Execution ---
@@ -502,7 +573,7 @@ export class ExplorerService {
   private async handleAuthBarrier(
     barrier: AuthBarrier,
     descriptor: FlowDescriptor,
-    options: ExploreOptions
+    _options: ExploreOptions
   ): Promise<boolean> {
     const strategy = descriptor.authConfig.strategy;
 
@@ -515,6 +586,12 @@ export class ExplorerService {
           await this.browser.waitForNetworkIdle(3000);
           return true;
         }
+        // Strategy requires test credentials but TEST_OTP is not set
+        console.warn(
+          '[Explorer] Strategy is "use_test_credentials" but TEST_OTP env var is not set. ' +
+          'Set TEST_OTP in your .env file to auto-fill OTP. Stopping at barrier.'
+        );
+        return false;
       }
 
       if (strategy === 'pause_at_otp') {
@@ -523,9 +600,13 @@ export class ExplorerService {
       }
 
       if (strategy === 'skip_auth') {
-        console.log('[Explorer] Skipping auth barrier');
+        console.log('[Explorer] Skipping auth barrier as per descriptor strategy');
         return false;
       }
+
+      // Unknown strategy — default to stopping
+      console.warn(`[Explorer] Unknown auth strategy "${strategy}" for OTP barrier — stopping`);
+      return false;
     }
 
     if (barrier.type === 'captcha') {
@@ -533,6 +614,8 @@ export class ExplorerService {
       return false;
     }
 
+    // Unknown barrier type
+    console.warn(`[Explorer] Unknown auth barrier type "${barrier.type}" — stopping`);
     return false;
   }
 
@@ -638,8 +721,10 @@ export class ExplorerService {
     const variant = getArg('--variant') as FlowVariant | undefined;
     const baseUrl = getArg('--base-url');
     const descriptorPath = getArg('--descriptor');
-    const maxSteps = getArg('--max-steps') ? parseInt(getArg('--max-steps')!, 10) : undefined;
-    const headless = hasFlag('--no-headless') ? false : true;
+    // Cache result to avoid calling getArg twice
+    const maxStepsRaw = getArg('--max-steps');
+    const maxSteps = maxStepsRaw ? parseInt(maxStepsRaw, 10) : undefined;
+    const headless = hasFlag('--no-headless') ? false : process.env.HEADLESS !== 'false';
 
     return {
       mode,

@@ -5,7 +5,7 @@
   "baseUrl": "{{env.BASE_URL}}",
 
   "entryPoint": {
-    "path": "/lp/b2c/2",
+    "path": "",
     "startAction": "Click the Get Started button"
   },
 
