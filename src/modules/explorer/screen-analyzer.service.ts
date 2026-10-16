@@ -19,14 +19,16 @@ Rules:
 4. URL changes always indicate a new screen.
 5. If only minor text changed (e.g., a counter updated, input filled), it is NOT a new screen.`;
 
-const ACTION_PRIORITY_SYSTEM = `You are a UI automation expert. Given a list of interactable elements on a page and the expected actions for this screen, determine which elements should be interacted with and in what order.
+const ACTION_PRIORITY_SYSTEM = `You are a UI automation expert. Given a list of interactable elements on a page, the current screen name, and the expected actions for this screen, determine which elements should be interacted with and in what order.
 
 Rules:
 1. Return ONLY raw JSON array: [{ "elementIndex": 0, "action": "click|fill|select|upload|check", "value": "...", "reason": "one sentence" }]
-2. Priority order: form inputs that need filling → primary CTA buttons → selection cards → secondary actions.
-3. Skip navigation links, footer links, back buttons, and decorative elements.
-4. For fill actions, suggest a reasonable test value based on the field type (phone: 10 digits, name: "Test User", email: "test@test.com", etc.)
-5. If expected actions are provided, match them to the visible elements.`;
+2. Priority order: form inputs that need filling → primary submit/CTA buttons (Request OTP, Continue, Verify) → selection cards → secondary actions.
+3. For mobile number / phone inputs, ALWAYS use the provided test mobile number (from testData.mobile).
+4. If a checkbox is already checked (or accepted by default, e.g. Rupeek Terms of Use / consent), DO NOT add an action to toggle it.
+5. After filling form inputs, include the primary button click (e.g. "Request OTP" or "Continue") to submit.
+6. Skip navigation links, footer links, back buttons, unmute buttons, and decorative elements.
+7. If expected actions are provided, match them to the visible elements.`;
 
 @Injectable()
 export class ScreenAnalyzerService {
@@ -123,14 +125,32 @@ export class ScreenAnalyzerService {
           case 'url_contains':
             if (observation.url.includes(id.value)) score++;
             break;
-          case 'element_visible':
-            if (observation.html.includes(id.value)) score++;
+          case 'element_visible': {
+            const valLower = id.value.toLowerCase();
+            const inHtml = observation.html.toLowerCase().includes(valLower);
+            const inElements = observation.interactableElements.some(
+              e =>
+                e.description.toLowerCase().includes(valLower) ||
+                (e.text && e.text.toLowerCase().includes(valLower)) ||
+                (e.placeholder && e.placeholder.toLowerCase().includes(valLower))
+            );
+            if (inHtml || inElements) score++;
             break;
-          case 'text_matches':
-            if (new RegExp(id.value, 'i').test(observation.html)) score++;
+          }
+          case 'text_matches': {
+            const regex = new RegExp(id.value, 'i');
+            const inHtml = regex.test(observation.html);
+            const inElements = observation.interactableElements.some(
+              e =>
+                regex.test(e.description) ||
+                (e.text && regex.test(e.text)) ||
+                (e.placeholder && regex.test(e.placeholder))
+            );
+            if (inHtml || inElements) score++;
             break;
+          }
           case 'title_contains':
-            if (observation.title.includes(id.value)) score++;
+            if (observation.title.toLowerCase().includes(id.value.toLowerCase())) score++;
             break;
         }
       }
@@ -153,6 +173,18 @@ export class ScreenAnalyzerService {
     observation: ScreenObservation,
     descriptor?: FlowDescriptor
   ): AuthBarrier | null {
+    // If the screen contains a mobile/phone number input, we are on Phone Auth — not an OTP barrier yet!
+    const hasMobileInput = observation.interactableElements.some(
+      e =>
+        e.inputType === 'tel' ||
+        e.description.toLowerCase().includes('mobile number') ||
+        e.description.toLowerCase().includes('phone number') ||
+        (e.placeholder && /^\d{5}/.test(e.placeholder))
+    );
+    if (hasMobileInput) {
+      return null;
+    }
+
     // Check descriptor hint first
     if (descriptor) {
       const match = this.matchScreen(observation, descriptor);
@@ -170,11 +202,22 @@ export class ScreenAnalyzerService {
     const htmlLower = observation.html.toLowerCase();
 
     // OTP detection
+    const hasOtpElement = observation.interactableElements.some(
+      e =>
+        e.description.toLowerCase().includes('otp') ||
+        (e.placeholder && e.placeholder.toLowerCase().includes('otp')) ||
+        (e.text && e.text.toLowerCase().includes('otp'))
+    );
+
     if (
       htmlLower.includes('enter otp') ||
       htmlLower.includes('verification code') ||
       htmlLower.includes('enter 4 digit') ||
-      htmlLower.includes('enter 6 digit')
+      htmlLower.includes('enter 6 digit') ||
+      htmlLower.includes('otp sent') ||
+      htmlLower.includes('verify otp') ||
+      htmlLower.includes('resend otp') ||
+      (hasOtpElement && (htmlLower.includes('resend') || htmlLower.includes('verify') || htmlLower.includes('digit')))
     ) {
       return {
         stepNumber: 0,
@@ -227,7 +270,13 @@ export class ScreenAnalyzerService {
           role: 'user',
           content: JSON.stringify({
             currentUrl: observation.url,
+            currentScreenName: currentScreen?.name,
             expectedActions,
+            testData: {
+              mobile: process.env.TEST_MOBILE_FRESH ?? process.env.TEST_MOBILE ?? '8930782208',
+              pincode: process.env.TEST_PINCODE ?? '560001',
+              pan: process.env.TEST_PAN ?? 'LSEPK3384C',
+            },
             elements: elementSummary,
           }),
         }],
@@ -277,6 +326,8 @@ export class ScreenAnalyzerService {
         desc.includes('continue') ||
         desc.includes('submit') ||
         desc.includes('proceed') ||
+        desc.includes('request otp') ||
+        desc.includes('verify') ||
         desc.includes('get started')
       ) {
         results.push({ element: el, action: 'click', reason: 'Button/CTA (fallback)' });

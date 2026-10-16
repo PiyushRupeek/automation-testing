@@ -22,19 +22,19 @@
     {
       "name": "Auth - Phone",
       "identifiedBy": [
-        { "type": "element_visible", "value": "Enter Mobile Number" }
+        { "type": "element_visible", "value": "Request OTP" },
+        { "type": "text_matches", "value": "mobile number" }
       ],
       "expectedActions": [
         "Fill mobile number",
-        "Check consent checkbox",
-        "Click Continue"
+        "Click Request OTP"
       ],
       "phase": "auth"
     },
     {
       "name": "Auth - OTP",
       "identifiedBy": [
-        { "type": "element_visible", "value": "Enter the OTP" }
+        { "type": "text_matches", "value": "enter otp|verify otp|digit otp|otp sent|resend otp" }
       ],
       "expectedActions": ["Fill OTP digits", "Click Verify or Continue"],
       "phase": "auth",

@@ -652,11 +652,16 @@ export class ExplorerService {
     try {
       const url = new URL(screen.url);
       const headings = screen.html
-        .match(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi)
+        .match(/<(?:h[1-4]|legend|label)[^>]*>([\s\S]*?)<\/(?:h[1-4]|legend|label)>/gi)
         ?.map(h => h.replace(/<[^>]+>/g, '').trim().toLowerCase())
+        .filter(t => t.length > 2 && t.length < 50)
         .slice(0, 3)
         .join('|') ?? '';
-      return `${url.pathname}::${headings}`;
+      const inputSignature = screen.interactableElements
+        .map(e => e.description)
+        .slice(0, 3)
+        .join('|');
+      return `${url.pathname}::${headings}::${inputSignature}`;
     } catch {
       return screen.url;
     }
