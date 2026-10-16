@@ -16,6 +16,7 @@ import { FlowGeneratorService } from './flow-generator.service';
 import { TemplateResolverService } from './template-resolver.service';
 import { DiffMergeService } from './diff-merge.service';
 import { FlowDescriptor } from './types/flow-descriptor.types';
+import { TerminalOtpProvider } from '../otp/providers/terminal-otp.provider';
 import {
   AuthBarrier,
   ExplorationStep,
@@ -40,6 +41,7 @@ export class ExplorerService {
     private readonly diffMerge: DiffMergeService,
     private readonly configRules: ConfigRulesService,
     private readonly healer: HealerService,
+    private readonly terminalOtp: TerminalOtpProvider,
   ) {}
 
   async explore(options: ExploreOptions): Promise<ExploreResult> {
@@ -390,7 +392,7 @@ export class ExplorerService {
       if (barrier) {
         barrier.stepNumber = currentStepNum;
         authBarriers.push(barrier);
-        console.log(`[Explorer] Auth barrier: ${barrier.type} — ${barrier.description}`);
+        console.log(`[Explorer] Auth barrier detected: ${barrier.type} — ${barrier.description}`);
 
         const handled = await this.handleAuthBarrier(barrier, descriptor, options);
         if (!handled) {
@@ -398,7 +400,39 @@ export class ExplorerService {
           return { steps, error: `Stopped at auth barrier: ${barrier.type}` };
         }
 
-        // Barrier was handled (e.g. OTP filled) — continue to next screen
+        // Barrier was handled (e.g. OTP filled) — capture transition and record step
+        await this.browser.waitForNetworkIdle(3000);
+        const screenAfter = await this.screenAnalyzer.captureScreen(this.browser);
+        await this.browser.screenshot(`step-${currentStepNum}-after.png`);
+        const transition = await this.screenAnalyzer.detectTransition(screenBefore, screenAfter);
+
+        steps.push({
+          stepNumber: currentStepNum,
+          screenName,
+          screenBefore,
+          screenAfter,
+          actionsPerformed: [
+            {
+              type: 'fill' as ActionType,
+              description: 'OTP input - full code into first box',
+              value: '{{prompt.otp}}',
+              templateVariable: '{{prompt.otp}}',
+            },
+            {
+              type: 'click' as ActionType,
+              description: 'Continue on OTP modal',
+            },
+          ],
+          transition: {
+            fromUrl: screenBefore.url,
+            toUrl: screenAfter.url,
+            urlChanged: transition.isNewScreen && screenBefore.url !== screenAfter.url,
+            domSignificantChange: transition.isNewScreen,
+            newElementsAppeared: [],
+          },
+        });
+
+        console.log(`  Barrier passed! Transition: ${transition.isNewScreen ? 'new screen' : 'same screen'}`);
         currentStepNum++;
         continue;
       }
@@ -578,24 +612,36 @@ export class ExplorerService {
     const strategy = descriptor.authConfig.strategy;
 
     if (barrier.type === 'otp') {
-      if (strategy === 'use_test_credentials') {
-        const testOtp = process.env.TEST_OTP;
-        if (testOtp) {
-          console.log('[Explorer] Using test OTP from environment');
-          await this.browser.act(`Fill ${testOtp} in the OTP field`);
-          await this.browser.waitForNetworkIdle(3000);
-          return true;
+      // 1. Check if TEST_OTP is explicitly provided in env
+      let otp = process.env.TEST_OTP?.trim();
+
+      // 2. If not provided in env, prompt interactively in terminal if enabled
+      if (!otp && this.terminalOtp.isInteractiveOtpEnabled()) {
+        try {
+          const mobile = process.env.TEST_MOBILE_FRESH ?? process.env.TEST_MOBILE ?? '8930782208';
+          console.log('\n============================================================');
+          console.log(`[Explorer] Auth Barrier: OTP verification required`);
+          console.log(`Waiting for OTP sent to: ${mobile}`);
+          console.log('============================================================');
+          otp = (await this.terminalOtp.requestOtpOptional(mobile)) ?? undefined;
+        } catch (err) {
+          console.warn(`[Explorer] Terminal OTP prompt error: ${err}`);
         }
-        // Strategy requires test credentials but TEST_OTP is not set
-        console.warn(
-          '[Explorer] Strategy is "use_test_credentials" but TEST_OTP env var is not set. ' +
-          'Set TEST_OTP in your .env file to auto-fill OTP. Stopping at barrier.'
-        );
-        return false;
       }
 
-      if (strategy === 'pause_at_otp') {
-        console.log('[Explorer] OTP barrier — recording step with template and stopping');
+      // 3. If OTP is available (either from env or terminal input), fill and submit
+      if (otp) {
+        console.log(`[Explorer] Submitting OTP into browser...`);
+        const filled = await this.browser.fillOtpAndSubmit(otp);
+        if (filled) {
+          console.log(`[Explorer] OTP verified successfully! Continuing exploration to next screens.`);
+          return true;
+        }
+      }
+
+      // 4. If strategy is pause_at_otp or user pressed Enter without OTP, pause cleanly
+      if (strategy === 'pause_at_otp' || !otp) {
+        console.log('[Explorer] OTP barrier — recording step with template {{prompt.otp}} and stopping');
         return false;
       }
 
@@ -604,7 +650,6 @@ export class ExplorerService {
         return false;
       }
 
-      // Unknown strategy — default to stopping
       console.warn(`[Explorer] Unknown auth strategy "${strategy}" for OTP barrier — stopping`);
       return false;
     }

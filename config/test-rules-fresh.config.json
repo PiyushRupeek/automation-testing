@@ -62,13 +62,21 @@
       "name": "Auth — OTP (existing user)",
       "actions": [
         {
+          "type": "click",
+          "label": "Focus first OTP box",
+          "selector": ".box-0-2-97:first-child input"
+        },
+        {
           "type": "fill",
-          "label": "OTP input",
-          "value": "{{prompt.otp}}"
+          "label": "OTP input - full code into first box",
+          "selector": ".box-0-2-97:first-child input",
+          "value": "{{prompt.otp}}",
+          "clearFirst": true
         },
         {
           "type": "click",
-          "label": "Continue on OTP modal"
+          "label": "Continue on OTP modal",
+          "selector": ".ctaBtn-0-2-107"
         }
       ],
       "assertions": [
@@ -76,7 +84,8 @@
           "type": "element_visible",
           "label": "Enter Pincode"
         }
-      ]
+      ],
+      "notes": "The OTP component uses a single hidden input with maxlength=4 in the first box that accepts the full OTP, then distributes digits to subsequent boxes. Always click to focus first, then fill the full OTP value into the first box input. If fill still does not stick, use pressSequentially/type action character by character on the first input. The current state shows OTP '1813' already entered (possibly from a previous partial attempt) — clear the field before filling."
     },
     {
       "step": 4,

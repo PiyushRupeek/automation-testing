@@ -173,23 +173,14 @@ export class ScreenAnalyzerService {
     observation: ScreenObservation,
     descriptor?: FlowDescriptor
   ): AuthBarrier | null {
-    // If the screen contains a mobile/phone number input, we are on Phone Auth — not an OTP barrier yet!
-    const hasMobileInput = observation.interactableElements.some(
-      e =>
-        e.inputType === 'tel' ||
-        e.description.toLowerCase().includes('mobile number') ||
-        e.description.toLowerCase().includes('phone number') ||
-        (e.placeholder && /^\d{5}/.test(e.placeholder))
-    );
-    if (hasMobileInput) {
-      return null;
-    }
-
-    // Check descriptor hint first
+    // 1. Check descriptor hint first if matched screen has isAuthBarrier
     if (descriptor) {
       const match = this.matchScreen(observation, descriptor);
       if (match.matched?.isAuthBarrier) {
-        const isOtp = observation.html.toLowerCase().includes('otp');
+        const isOtp =
+          match.matched.name.toLowerCase().includes('otp') ||
+          observation.html.toLowerCase().includes('otp') ||
+          observation.interactableElements.some(e => e.description.toLowerCase().includes('otp'));
         return {
           stepNumber: 0,
           type: isOtp ? 'otp' : 'unknown',
@@ -201,7 +192,7 @@ export class ScreenAnalyzerService {
 
     const htmlLower = observation.html.toLowerCase();
 
-    // OTP detection
+    // 2. OTP detection
     const hasOtpElement = observation.interactableElements.some(
       e =>
         e.description.toLowerCase().includes('otp') ||
@@ -210,14 +201,15 @@ export class ScreenAnalyzerService {
     );
 
     if (
+      hasOtpElement ||
       htmlLower.includes('enter otp') ||
       htmlLower.includes('verification code') ||
       htmlLower.includes('enter 4 digit') ||
       htmlLower.includes('enter 6 digit') ||
       htmlLower.includes('otp sent') ||
       htmlLower.includes('verify otp') ||
-      htmlLower.includes('resend otp') ||
-      (hasOtpElement && (htmlLower.includes('resend') || htmlLower.includes('verify') || htmlLower.includes('digit')))
+      htmlLower.includes('verify your number') ||
+      htmlLower.includes('resend otp')
     ) {
       return {
         stepNumber: 0,
@@ -227,7 +219,24 @@ export class ScreenAnalyzerService {
       };
     }
 
-    // CAPTCHA detection
+    // 3. Phone Auth check — if the screen contains an editable mobile/phone input, we are NOT on an OTP barrier yet
+    const hasMobileInput = observation.interactableElements.some(
+      e =>
+        (e.tagName === 'input' || e.role === 'textbox' || e.inputType === 'tel') &&
+        e.role !== 'button' &&
+        e.tagName !== 'button' &&
+        (
+          e.inputType === 'tel' ||
+          e.description.toLowerCase().includes('mobile number') ||
+          (e.description.toLowerCase().includes('phone number') && !e.description.toLowerCase().includes('edit')) ||
+          (e.placeholder && /^\d{5}/.test(e.placeholder))
+        )
+    );
+    if (hasMobileInput) {
+      return null;
+    }
+
+    // 4. CAPTCHA detection
     if (htmlLower.includes('captcha') || htmlLower.includes('recaptcha')) {
       return {
         stepNumber: 0,

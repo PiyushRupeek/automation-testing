@@ -33,7 +33,7 @@ export interface ScreenIdentifier {
   value: string;
 }
 
-export type AuthStrategy = 'pause_at_otp' | 'use_test_credentials' | 'skip_auth';
+export type AuthStrategy = 'pause_at_otp' | 'use_test_credentials' | 'skip_auth' | 'interactive';
 
 export interface AuthConfig {
   mobileField?: string;

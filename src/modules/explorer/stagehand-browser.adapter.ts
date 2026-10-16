@@ -122,4 +122,67 @@ export class StagehandBrowserAdapter {
   async getTitle(): Promise<string> {
     return this.getPage().title();
   }
+
+  async fillOtpAndSubmit(otp: string): Promise<boolean> {
+    const page = this.getPage();
+    try {
+      // 1. Locate the OTP inputs
+      // Rupeek LP2 has .box-0-2-97:first-child input or div[class*="box"] input
+      const firstInput = page
+        .locator(
+          '.box-0-2-97:first-child input, div[class*="box"] input, input[type="tel"], input[type="number"], input[autocomplete="one-time-code"]'
+        )
+        .first();
+
+      const count = await firstInput.count();
+      if (count > 0) {
+        console.log('[Stagehand] Focusing first OTP input box and typing code');
+        await firstInput.click({ force: true }).catch(() => {});
+        await firstInput.fill('');
+        await firstInput.pressSequentially(otp, { delay: 100 });
+      }
+
+      await page.waitForTimeout(500);
+
+      // 2. Check if individual digit boxes exist and remaining boxes are still empty
+      const allBoxes = page.locator('div[class*="box"] input, input[type="tel"], input[type="number"]');
+      const boxCount = await allBoxes.count();
+      if (boxCount >= 4) {
+        for (let i = 0; i < 4 && i < otp.length; i++) {
+          const val = await allBoxes.nth(i).inputValue().catch(() => '');
+          if (!val) {
+            await allBoxes.nth(i).focus().catch(() => {});
+            await allBoxes.nth(i).fill(otp[i]).catch(() => {});
+          }
+        }
+      }
+
+      await page.waitForTimeout(500);
+
+      // 3. Click Continue or Verify button
+      const continueBtn = page
+        .locator('button:has-text("Continue"), button:has-text("Verify"), .ctaBtn-0-2-107, button[type="submit"]')
+        .first();
+      if ((await continueBtn.count()) > 0) {
+        console.log('[Stagehand] Clicking Continue on OTP verification screen');
+        await continueBtn.click({ force: true });
+      } else {
+        await this.act('Click the Continue button');
+      }
+
+      await this.waitForNetworkIdle(3000);
+      return true;
+    } catch (err) {
+      console.warn('[Stagehand] Failed to submit OTP directly:', err);
+      try {
+        await this.act(`Fill ${otp} in the OTP boxes and click Continue`);
+        await this.waitForNetworkIdle(3000);
+        return true;
+      } catch (actErr) {
+        console.warn('[Stagehand] Fallback act also failed:', actErr);
+        return false;
+      }
+    }
+  }
 }
+

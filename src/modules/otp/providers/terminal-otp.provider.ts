@@ -46,12 +46,28 @@ export class TerminalOtpProvider implements OtpProvider {
 
     for (let attempt = 0; attempt < 2; attempt++) {
       const answer = (await this.question(`${prefix}`)).trim();
-      if (/^\d{4}$/.test(answer)) return answer;
+      if (/^\d{4,6}$/.test(answer)) return answer;
       if (attempt === 0) {
         console.log('Please enter a 4-digit OTP.');
       }
     }
 
-    throw new Error('Invalid OTP input (expected 4 digits).');
+    throw new Error('Invalid OTP input (expected 4-6 digits).');
+  }
+
+  async requestOtpOptional(mobile?: string): Promise<string | null> {
+    const prefix = mobile
+      ? `OTP for ${mobile} (or press Enter to pause): `
+      : 'OTP (or press Enter to pause): ';
+    const answer = (await this.question(`${prefix}`)).trim();
+    if (!answer) return null;
+    if (/^\d{4,6}$/.test(answer)) return answer;
+
+    console.log('Invalid format. Please enter a 4-digit OTP, or press Enter to pause.');
+    const retry = (await this.question(`${prefix}`)).trim();
+    if (!retry) return null;
+    if (/^\d{4,6}$/.test(retry)) return retry;
+    return null;
   }
 }
+
