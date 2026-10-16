@@ -1,0 +1,26 @@
+{
+  "site": {
+    "baseUrl": "https://rupeek.com/lp/b2c/2",
+    "name": "rupeek-lp2",
+    "timeout": 30000
+  },
+  "credentials": {
+    "mobile": "{{env.TEST_MOBILE}}",
+    "otp": "{{env.TEST_OTP}}",
+    "pan": "{{env.TEST_PAN}}"
+  },
+  "loanDetails": {
+    "amount": 0,
+    "goldWeight": 0,
+    "purity": "",
+    "purpose": "",
+    "pincode": "{{env.TEST_PINCODE}}"
+  },
+  "flow": [],
+  "errorCases": [],
+  "schedule": "0 */6 * * *",
+  "notifications": {
+    "slackWebhook": "{{env.SLACK_WEBHOOK}}",
+    "email": "{{env.ALERT_EMAIL}}"
+  }
+}

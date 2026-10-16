@@ -1,0 +1,151 @@
+{
+  "product": "rupeek-lp2",
+  "version": "1.0",
+  "description": "Rupeek B2C LP2 Gold Loan — Fresh Loan Flow",
+  "baseUrl": "{{env.BASE_URL}}",
+
+  "entryPoint": {
+    "path": "",
+    "startAction": "Click the Get Started button"
+  },
+
+  "screens": [
+    {
+      "name": "Landing",
+      "identifiedBy": [
+        { "type": "url_contains", "value": "/lp/b2c/2" },
+        { "type": "element_visible", "value": "Get Started" }
+      ],
+      "expectedActions": ["Click Get Started"],
+      "phase": "entry"
+    },
+    {
+      "name": "Auth - Phone",
+      "identifiedBy": [
+        { "type": "element_visible", "value": "Request OTP" },
+        { "type": "text_matches", "value": "mobile number" }
+      ],
+      "expectedActions": [
+        "Fill mobile number",
+        "Click Request OTP"
+      ],
+      "phase": "auth"
+    },
+    {
+      "name": "Auth - OTP",
+      "identifiedBy": [
+        { "type": "text_matches", "value": "enter otp|verify otp|digit otp|otp sent|resend otp" }
+      ],
+      "expectedActions": ["Fill OTP digits", "Click Verify or Continue"],
+      "phase": "auth",
+      "isAuthBarrier": true
+    },
+    {
+      "name": "Auth - Pincode",
+      "identifiedBy": [
+        { "type": "element_visible", "value": "Enter pincode" }
+      ],
+      "expectedActions": ["Fill pincode", "Click Continue"],
+      "phase": "auth"
+    },
+    {
+      "name": "PAN Confirmation",
+      "identifiedBy": [
+        { "type": "element_visible", "value": "PAN details" },
+        { "type": "element_visible", "value": "Yes, That's Me" }
+      ],
+      "expectedActions": ["Click Yes, That's Me"],
+      "phase": "auth"
+    },
+    {
+      "name": "Loan Type Selection",
+      "identifiedBy": [
+        { "type": "element_visible", "value": "What are you looking for" }
+      ],
+      "expectedActions": ["Click Get New loan card", "Click Continue"],
+      "expectedAssertions": ["What are you looking for"],
+      "phase": "form"
+    },
+    {
+      "name": "Gold Weight Details",
+      "identifiedBy": [
+        { "type": "url_contains", "value": "gold-weight-details" },
+        { "type": "element_visible", "value": "Loan Amount" }
+      ],
+      "expectedActions": [
+        "Select Lowest Interest Rate preference card",
+        "Click Show My Offers"
+      ],
+      "phase": "form"
+    },
+    {
+      "name": "Offer Page",
+      "identifiedBy": [
+        { "type": "url_contains", "value": "offer-page" },
+        { "type": "element_visible", "value": "Total Loan Amount" }
+      ],
+      "expectedActions": [
+        "Click the first offer card",
+        "Click Proceed"
+      ],
+      "phase": "selection"
+    },
+    {
+      "name": "Meeting Slots",
+      "identifiedBy": [
+        { "type": "url_contains", "value": "meeting-slots" }
+      ],
+      "expectedActions": [
+        "Select a date from the calendar",
+        "Select a Morning or Afternoon time slot",
+        "Click Continue"
+      ],
+      "phase": "booking"
+    },
+    {
+      "name": "Thank You",
+      "identifiedBy": [
+        { "type": "url_contains", "value": "thank-you" },
+        { "type": "element_visible", "value": "submitted" }
+      ],
+      "expectedAssertions": [
+        "Loan request submitted",
+        "representative will reach out"
+      ],
+      "phase": "confirmation"
+    }
+  ],
+
+  "authConfig": {
+    "mobileField": "mobile number",
+    "otpField": "OTP",
+    "strategy": "pause_at_otp"
+  },
+
+  "templateMappings": [
+    { "fieldHint": "mobile", "templateVariable": "{{credentials.mobile}}", "inputType": "tel" },
+    { "fieldHint": "phone", "templateVariable": "{{credentials.mobile}}", "inputType": "tel" },
+    { "fieldHint": "OTP", "templateVariable": "{{prompt.otp}}" },
+    { "fieldHint": "verification code", "templateVariable": "{{prompt.otp}}" },
+    { "fieldHint": "pincode", "templateVariable": "{{loanDetails.pincode}}" },
+    { "fieldHint": "pin code", "templateVariable": "{{loanDetails.pincode}}" },
+    { "fieldHint": "PAN", "templateVariable": "{{credentials.pan}}" }
+  ],
+
+  "explorationHints": {
+    "maxDepth": 15,
+    "preferredPath": [
+      "Landing",
+      "Auth - Phone",
+      "Auth - OTP",
+      "Auth - Pincode",
+      "PAN Confirmation",
+      "Loan Type Selection",
+      "Gold Weight Details",
+      "Offer Page",
+      "Meeting Slots",
+      "Thank You"
+    ],
+    "avoidPatterns": ["/admin", "/api/", "/internal"]
+  }
+}

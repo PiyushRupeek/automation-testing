@@ -205,7 +205,12 @@ export class BrowserSession {
     const isValueApplied = async (): Promise<boolean> => {
       if (!value) return true;
       const current = (await getValue()).trim();
-      return current === value;
+      if (current === value) return true;
+      const maxLength = await locator.getAttribute('maxlength').catch(() => null);
+      if (maxLength && parseInt(maxLength, 10) < value.length) {
+        return current.length > 0 && value.startsWith(current);
+      }
+      return false;
     };
 
     await setValueViaNativeSetter('');
